@@ -80,6 +80,22 @@ __global__ void gpu_compute_active_force_set_forces_kernel(const unsigned int gr
         d_torque[idx].y = ti.y;
         d_torque[idx].z = ti.z;
 
+    	if (is2D) // 2D 
+	    {
+	        Scalar qx = d_orientation[idx].x;
+	        Scalar qy = d_orientation[idx].y;
+	        Scalar qz = d_orientation[idx].z;
+	        Scalar qw = d_orientation[idx].w;
+	        Scalar half_theta = atan2(qw,qx);
+	        Scalar theta = 2*half_theta;
+	        Scalar or_x = fast::cos(theta);
+	        Scalar or_y = fast::sin(theta);
+	        Scalar f_actMag = d_f_actMag[tag];
+	        d_force[idx].x = f_actMag*or_x;
+	        d_force[idx].y = f_actMag*or_y;
+	        d_force[idx].z = Scalar(0.0);
+	    }
+
         }
     else // no orientation link
         {

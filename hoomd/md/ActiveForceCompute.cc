@@ -193,6 +193,25 @@ void ActiveForceCompute::setForces()
             h_torque.data[idx].x = ti.x;
             h_torque.data[idx].y = ti.y;
             h_torque.data[idx].z = ti.z;
+
+            if (m_sysdef->getNDimensions() == 2) // 2D
+                {
+	            Scalar qx = h_orientation.data[idx].x;
+	            Scalar qy = h_orientation.data[idx].y;
+	            Scalar qz = h_orientation.data[idx].z;
+	            Scalar qw = h_orientation.data[idx].w;
+//	            std::cout << "ACTIVE FORCE: quatx: " << qx << ", quaty: " << qy << ", quatz: " << qz << ", quatw: " << qw << std::endl;
+	            Scalar half_theta = atan2(qw,qx);
+	            Scalar theta = 2*half_theta;
+	            Scalar or_x = fast::cos(theta);
+	            Scalar or_y = fast::sin(theta);
+	            Scalar or_z = Scalar(0.0);
+		    Scalar f_actMag = h_f_actMag.data[i];
+		    h_force.data[idx].x = f_actMag*or_x;
+		    h_force.data[idx].y = f_actMag*or_y;
+		    h_force.data[idx].z = f_actMag*or_z;
+		}
+
             }
         else // no orientation link
             {
