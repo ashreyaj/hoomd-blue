@@ -104,9 +104,8 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 
         // compute the random force
         UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
-        Scalar rx = uniform(rng);
-        Scalar ry = uniform(rng);
-        Scalar rz = uniform(rng);
+        Scalar rpar = uniform(rng);
+        Scalar rperp = uniform(rng);
 
         Scalar gamma;
         if (m_use_lambda)
@@ -117,22 +116,64 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
             gamma = h_gamma.data[type];
             }
 
-        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
-        // it is not the dimensionality of the system
-        Scalar coeff = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma*currentTemp/m_deltaT);
-        if (m_noiseless_t)
-            coeff = Scalar(0.0);
-        Scalar Fr_x = rx*coeff;
-        Scalar Fr_y = ry*coeff;
-        Scalar Fr_z = rz*coeff;
 
-        if (D < 3)
-            Fr_z = Scalar(0.0);
+        // obtain rotation matrices (space->body)
+	Scalar qx = h_orientation.data[j].x;
+	Scalar qy = h_orientation.data[j].y;
+	Scalar qz = h_orientation.data[j].z;
+	Scalar qw = h_orientation.data[j].w;
+	Scalar half_theta = atan2(qw,qx);
+	Scalar theta = 2*half_theta;
+	Scalar or_x = fast::cos(theta);
+	Scalar or_y = fast::sin(theta);
+	Scalar or_z = Scalar(0.0);
+	Scalar orp_x = -or_y; // orientation perpendicular to axis in 2D. e_perp = R.e_par where R is the rotation matrix
+	Scalar orp_y = or_x;
+	Scalar orp_z = Scalar(0.0);
 
+
+	// In this hack, the value of gamma is actually the value of gamma_par/gamma_perp
+	Scalar gamma_perp = Scalar(1.0);
+	Scalar gamma_par = gamma * gamma_perp;
+
+    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
+    // it is not the dimensionality of the system
+    if (m_noiseless_t)
+	{
+        coeff_par = Scalar(0.0);
+        coeff_perp = Scalar(0.0);
+	}
+   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp * m_deltaT));
+    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par * m_deltaT));
+    Scalar vr_x = rpar*coeff_par*or_x + rperp*coeff_perp*orp_x;
+    Scalar vr_y = rpar*coeff_par*or_y + rperp*coeff_perp*orp_y;
+   	Scalar vr_z = rpar*coeff_par*or_z + rperp*coeff_perp*orp_z;
+
+    if (D < 3)
+        vr_z = Scalar(0.0);
+
+	// Convert force from lab frame to body frame so that we can apply the mobility matrix known.
+	Scalar fxl = h_net_force.data[j].x;
+	Scalar fyl = h_net_force.data[j].y;
+	Scalar fzl = h_net_force.data[j].z;
+
+	Scalar fxb = (fxl*or_x) + (fyl*or_y);
+	Scalar fyb = -(fxl*or_y) + (fyl*or_x);
+	Scalar fzb = Scalar(0.0);
+
+	// Compute velocity in body frame
+	Scalar vxb = fxb / gamma_par;
+	Scalar vyb = fyb / gamma_perp;
+	Scalar vzb = Scalar(0.0);
+
+	// Convert velocity to lab frame
+	Scalar vxl = vxb*or_x - vyb*or_y;
+	Scalar vyl = vxb*or_y + vyb*or_x;
+	Scalar vzl = Scalar(0.0);
         // update position
-        h_pos.data[j].x += (h_net_force.data[j].x + Fr_x) * m_deltaT / gamma;
-        h_pos.data[j].y += (h_net_force.data[j].y + Fr_y) * m_deltaT / gamma;
-        h_pos.data[j].z += (h_net_force.data[j].z + Fr_z) * m_deltaT / gamma;
+	h_pos.data[j].x += (vxl + vr_x)*m_deltaT;
+	h_pos.data[j].y += (vyl + vr_y)*m_deltaT;
+	h_pos.data[j].z += (vzl + vr_z)*m_deltaT;
 
         // particles may have been moved slightly outside the box by the above steps, wrap them back into place
         box.wrap(h_pos.data[j], h_image.data[j]);
@@ -160,21 +201,25 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
                 vec3<Scalar> t(h_torque.data[j]);
                 vec3<Scalar> I(h_inertia.data[j]);
 
+            	// obtain rotation matrices (space->body)
+	        rotmat3<Scalar> rotA(conj(q));
+
                 bool x_zero, y_zero, z_zero;
                 x_zero = (I.x < EPSILON); y_zero = (I.y < EPSILON); z_zero = (I.z < EPSILON);
 
-                Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(2.0)*gamma_r.x*currentTemp/m_deltaT),
-                                               fast::sqrt(Scalar(2.0)*gamma_r.y*currentTemp/m_deltaT),
-                                               fast::sqrt(Scalar(2.0)*gamma_r.z*currentTemp/m_deltaT));
+	        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
+	        // it is not the dimensionality of the system
+
+                Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/m_deltaT),
+                                               fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*currentTemp/m_deltaT),
+                                               fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*currentTemp/m_deltaT));
                 if (m_noiseless_r)
                     sigma_r = make_scalar3(0,0,0);
 
-                // original Gaussian random torque
-                // Gaussian random distribution is preferred in terms of preserving the exact math
                 vec3<Scalar> bf_torque;
-                bf_torque.x = NormalDistribution<Scalar>(sigma_r.x)(rng);
-                bf_torque.y = NormalDistribution<Scalar>(sigma_r.y)(rng);
-                bf_torque.z = NormalDistribution<Scalar>(sigma_r.z)(rng);
+                bf_torque.x = (sigma_r.x)*uniform(rng);
+                bf_torque.y = (sigma_r.y)*uniform(rng);
+                bf_torque.z = (sigma_r.z)*uniform(rng);
 
                 if (x_zero) bf_torque.x = 0;
                 if (y_zero) bf_torque.y = 0;
@@ -189,14 +234,32 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
                     {
                     bf_torque.x = 0;
                     bf_torque.y = 0;
-                    t.x = 0;
-                    t.y = 0;
+
+                    Scalar qx = h_orientation.data[j].x;
+                    Scalar qy = h_orientation.data[j].y;
+                    Scalar qz = h_orientation.data[j].z;
+                    Scalar qw = h_orientation.data[j].w;
+                    Scalar half_theta = atan2(qw,qx);
+                    Scalar theta = 2*half_theta;
+		    // Orientation of particle before applying torque
+                    Scalar ori_x = fast::cos(theta);
+                    Scalar ori_y = fast::sin(theta);
+                    Scalar ori_z = Scalar(0.0);
+		    // Orientation of particle after applying torque
+		    Scalar ort_x = ori_x + (t.z*ori_y/gamma_r.x)*m_deltaT;
+		    Scalar ort_y = ori_y - (t.z*ori_x/gamma_r.x)*m_deltaT;
+		    Scalar ort_z = Scalar(0.0);
+		    // Obtain angle made by particle with x-axis and then apply rotational noise to get the final orientation
+		    // Then, convert to a quaternion and update particle property
+		    Scalar ang_tor = atan2(ort_y,ort_x);
+		    Scalar ang_final = atan2(ort_y,ort_x) + (bf_torque.z/gamma_r.x)*m_deltaT;
+		    h_orientation.data[j] = make_scalar4(cos(0.5*ang_final), 0.0, 0.0, sin(0.5*ang_final));
                     }
 
                 // do the integration for quaternion
-                q += Scalar(0.5) * m_deltaT * ((t + bf_torque) / vec3<Scalar>(gamma_r)) * q ;
-                q = q * (Scalar(1.0) / slow::sqrt(norm2(q)));
-                h_orientation.data[j] = quat_to_scalar4(q);
+//                q += Scalar(0.5) * m_deltaT * ((t + bf_torque) / vec3<Scalar>(gamma_r)) * q ;
+//                q = q * (Scalar(1.0) / slow::sqrt(norm2(q)));
+//                h_orientation.data[j] = quat_to_scalar4(q);
 
                 // draw a new random ang_mom for particle j in body frame
                 p_vec.x = NormalDistribution<Scalar>(fast::sqrt(currentTemp * I.x))(rng);

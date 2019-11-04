@@ -122,62 +122,129 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
         // read in the tag of our particle.
         unsigned int ptag = d_tag[idx];
 
-        // compute the random force
-        RandomGenerator rng(RNGIdentifier::TwoStepBD, seed, ptag, timestep);
-        UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
-        Scalar rx = uniform(rng);
-        Scalar ry = uniform(rng);
-        Scalar rz =  uniform(rng);
+		// obtain gamma
+	    Scalar gamma;
+	    if (use_lambda)
+	        {
+	        // determine gamma from diameter
+	        gamma = lambda*d_diameter[idx];
+	        }
+	    else
+	        {
+	        // determine gamma from type
+	        unsigned int typ = __scalar_as_int(postype.w);
+	        gamma = s_gammas[typ];
+	        }
 
-        // calculate the magnitude of the random force
-        Scalar gamma;
-        if (use_lambda)
-            {
-            // determine gamma from diameter
-            gamma = lambda*d_diameter[idx];
-            }
-        else
-            {
-            // determine gamma from type
-            unsigned int typ = __scalar_as_int(postype.w);
-            gamma = s_gammas[typ];
-            }
+		// distribution from which translational/rotational noise should be drawn
+	    RandomGenerator rng(RNGIdentifier::TwoStepBD, seed, ptag, timestep);
+	    UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
 
-        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
-        // it is not the dimensionality of the system
-        Scalar coeff = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma*T/deltaT);
-        if (d_noiseless_t)
-            coeff = Scalar(0.0);
-        Scalar Fr_x = rx*coeff;
-        Scalar Fr_y = ry*coeff;
-        Scalar Fr_z = rz*coeff;
-
-        if (D < 3)
-            Fr_z = Scalar(0.0);
-
-        // update position
-        postype.x += (net_force.x + Fr_x) * deltaT / gamma;
-        postype.y += (net_force.y + Fr_y) * deltaT / gamma;
-        postype.z += (net_force.z + Fr_z) * deltaT / gamma;
-
-        // particles may have been moved slightly outside the box by the above steps, wrap them back into place
-        box.wrap(postype, image);
-
-        // draw a new random velocity for particle j
-        Scalar mass = vel.w;
-        Scalar sigma = fast::sqrt(T/mass);
-        NormalDistribution<Scalar> normal(sigma);
-        vel.x = normal(rng);
-        vel.y = normal(rng);
-        if (D > 2)
-            vel.z = normal(rng);
-        else
-            vel.z = 0;
-
-        // write out data
-        d_pos[idx] = postype;
-        d_vel[idx] = vel;
-        d_image[idx] = image;
+		// retain code as it is if D=3 (never personally tested it -- Ashreya)
+		if (D > 2)
+		{
+		        // compute the random force
+		        Scalar rx = uniform(rng);
+		        Scalar ry = uniform(rng);
+		        Scalar rz =  uniform(rng);
+		
+		        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
+		        // it is not the dimensionality of the system
+		        Scalar coeff = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma*T/deltaT);
+		        if (d_noiseless_t)
+		            coeff = Scalar(0.0);
+		        Scalar Fr_x = rx*coeff;
+		        Scalar Fr_y = ry*coeff;
+		        Scalar Fr_z = rz*coeff;
+		
+		        // update position
+		        postype.x += (net_force.x + Fr_x) * deltaT / gamma;
+		        postype.y += (net_force.y + Fr_y) * deltaT / gamma;
+		        postype.z += (net_force.z + Fr_z) * deltaT / gamma;
+		
+		        // particles may have been moved slightly outside the box by the above steps, wrap them back into place
+		        box.wrap(postype, image);
+		
+		        // draw a new random velocity for particle j
+		        Scalar mass = vel.w;
+		        Scalar sigma = fast::sqrt(T/mass);
+		        NormalDistribution<Scalar> normal(sigma);
+		        vel.x = normal(rng);
+		        vel.y = normal(rng);
+		        vel.z = normal(rng);
+		
+		}
+		// 2D anistropic brownian integrator
+		else
+		{
+	        Scalar rpar = uniform(rng);
+	        Scalar rperp = uniform(rng);
+	
+	        // obtain orientation of particle
+			Scalar qx = d_orientation.data[j].x;
+			Scalar qy = d_orientation.data[j].y;
+			Scalar qz = d_orientation.data[j].z;
+			Scalar qw = d_orientation.data[j].w;
+			Scalar half_theta = atan2(qw,qx);
+			Scalar theta = 2*half_theta;
+			Scalar or_x = fast::cos(theta);
+			Scalar or_y = fast::sin(theta);
+			Scalar orp_x = -or_y; // orientation perpendicular to axis in 2D. e_perp = R.e_par where R is the rotation matrix
+			Scalar orp_y = or_x;
+	
+			// In this hack, the value of gamma is actually the value of gamma_par/gamma_perp
+			Scalar gamma_perp = Scalar(1.0);
+			Scalar gamma_par = gamma * gamma_perp;
+	
+		    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
+		    // it is not the dimensionality of the system
+		   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp*deltaT));
+		    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par*deltaT));
+		    if (m_noiseless_t)
+			{
+		        coeff_par = Scalar(0.0);
+		        coeff_perp = Scalar(0.0);
+			}
+		    Scalar vr_x = rpar*coeff_par*or_x + rperp*coeff_perp*orp_x;
+		    Scalar vr_y = rpar*coeff_par*or_y + rperp*coeff_perp*orp_y;
+			
+			// Convert force from lab frame to body frame so that we can apply the mobility matrix known.
+			Scalar fxl = net_force.x;
+			Scalar fyl = net_force.y;
+			Scalar fzl = net_force.z;
+		
+			Scalar fxb = (fxl*or_x) + (fyl*or_y);
+			Scalar fyb = -(fxl*or_y) + (fyl*or_x);
+	
+			// Compute velocity in body frame
+			Scalar vxb = fxb / gamma_par;
+			Scalar vyb = fyb / gamma_perp;
+		
+			// Convert velocity to lab frame
+			Scalar vxl = vxb*or_x - vyb*or_y;
+			Scalar vyl = vxb*or_y + vyb*or_x;
+		
+		    // update position
+			postype.x += (vxl + vr_x)*deltaT;
+			postype.y += (vyl + vr_y)*deltaT;
+			postype.z += Scalar(0.0);
+	
+	        // particles may have been moved slightly outside the box by the above steps, wrap them back into place
+		    box.wrap(postype, image);
+	
+	        // draw a new random velocity for particle j
+	        Scalar mass =  vel.w;
+	        Scalar sigma = fast::sqrt(currentTemp/mass);
+	        NormalDistribution<Scalar> normal(sigma);
+		    vel.x = normal(rng);
+		    vel.y = normal(rng);
+		    vel.z = 0;
+		}
+	
+		// write out data
+		d_pos[idx] = postype;
+		d_vel[idx] = vel;
+		d_image[idx] = image;
 
         // rotational random force and orientation quaternion updates
         if (aniso)
@@ -197,38 +264,62 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
                 bool x_zero, y_zero, z_zero;
                 x_zero = (I.x < EPSILON); y_zero = (I.y < EPSILON); z_zero = (I.z < EPSILON);
 
-                Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(2.0)*gamma_r.x*T/deltaT),
-                                               fast::sqrt(Scalar(2.0)*gamma_r.y*T/deltaT),
-                                               fast::sqrt(Scalar(2.0)*gamma_r.z*T/deltaT));
-                if (d_noiseless_r)
-                    sigma_r = make_scalar3(0,0,0);
+				if (D > 2)
+				{
+                	Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/deltaT),
+                    	                           fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*currentTemp/deltaT),
+                        	                       fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*currentTemp/deltaT));
+	                if (d_noiseless_r)
+	                    sigma_r = make_scalar3(0,0,0);
+	
+	                // original Gaussian random torque
+	                // Gaussian random distribution is preferred in terms of preserving the exact math
+	                vec3<Scalar> bf_torque;
+	                bf_torque.x = (sigma_r.x)*uniform(rng);
+	                bf_torque.y = (sigma_r.y)*uniform(rng);
+	                bf_torque.z = (sigma_r.z)*uniform(rng);
+	
+	                if (x_zero) bf_torque.x = 0;
+	                if (y_zero) bf_torque.y = 0;
+	                if (z_zero) bf_torque.z = 0;
+	
+	                // use the damping by gamma_r and rotate back to lab frame
+	                // For Future Updates: take special care when have anisotropic gamma_r
+	                bf_torque = rotate(q, bf_torque);
 
-                // original Gaussian random torque
-                // Gaussian random distribution is preferred in terms of preserving the exact math
-                vec3<Scalar> bf_torque;
-                bf_torque.x = NormalDistribution<Scalar>(sigma_r.x)(rng);
-                bf_torque.y = NormalDistribution<Scalar>(sigma_r.y)(rng);
-                bf_torque.z = NormalDistribution<Scalar>(sigma_r.z)(rng);
+	                // do the integration for quaternion
+	                q += Scalar(0.5) * deltaT * ((t + bf_torque) / vec3<Scalar>(gamma_r)) * q ;
+	                q = q * (Scalar(1.0) / slow::sqrt(norm2(q)));
+	                d_orientation[idx] = quat_to_scalar4(q);
+				}
 
-                if (x_zero) bf_torque.x = 0;
-                if (y_zero) bf_torque.y = 0;
-                if (z_zero) bf_torque.z = 0;
+				else
+                {
+					sigma_r = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/deltaT);
+	            	if (d_noiseless_r)
+	                	sigma_r = Scalar(0.0);
+					bf_torque = sigma_r*uniform(rng);
+	                t.x = 0;
+	                t.y = 0;
+	                Scalar qx = d_orientation[idx].x;
+	                Scalar qy = d_orientation[idx].y;
+	                Scalar qz = d_orientation[idx].z;
+	                Scalar qw = d_orientation[idx].w;
+	                Scalar half_theta = atan2(qw,qx);
+	                Scalar theta = 2*half_theta;
+				    // Orientation of particle before applying torque
+	                Scalar ori_x = fast::cos(theta);
+	                Scalar ori_y = fast::sin(theta);
+				    // Orientation of particle after applying torque
+				    Scalar ort_x = ori_x + (t.z*ori_y/gamma_r.x)*deltaT;
+				    Scalar ort_y = ori_y - (t.z*ori_x/gamma_r.x)*deltaT;
+				    // Obtain angle made by particle with x-axis and then apply rotational noise to get the final orientation
+				    // Then, convert angle to quaternion and update particle property
+				    Scalar ang_tor = atan2(ort_y,ort_x);
+				    Scalar ang_final = atan2(ort_y,ort_x) + (bf_torque/gamma_r.x)*deltaT;
+				    d_orientation[idx] = make_scalar4(cos(0.5*ang_final), 0.0, 0.0, sin(0.5*ang_final));
+                }
 
-                // use the damping by gamma_r and rotate back to lab frame
-                // For Future Updates: take special care when have anisotropic gamma_r
-                bf_torque = rotate(q, bf_torque);
-                if (D < 3)
-                    {
-                    bf_torque.x = 0;
-                    bf_torque.y = 0;
-                    t.x = 0;
-                    t.y = 0;
-                    }
-
-                // do the integration for quaternion
-                q += Scalar(0.5) * deltaT * ((t + bf_torque) / vec3<Scalar>(gamma_r)) * q ;
-                q = q * (Scalar(1.0) / slow::sqrt(norm2(q)));
-                d_orientation[idx] = quat_to_scalar4(q);
 
                 // draw a new random ang_mom for particle j in body frame
                 p_vec.x = NormalDistribution<Scalar>(fast::sqrt(T * I.x))(rng);
