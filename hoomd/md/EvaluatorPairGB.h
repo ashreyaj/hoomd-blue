@@ -15,6 +15,8 @@
 #define HOOMD_GB_MAX(i,j) ((i > j) ? i : j)
 
 #include "hoomd/VectorMath.h"
+using namespace hoomd;
+using namespace std;
 
 /*! \file EvaluatorPairGB.h
     \brief Defines a an evaluator class for the Gay-Berne potential
@@ -108,77 +110,158 @@ class EvaluatorPairGB
         HOSTDEVICE  bool
         evaluate(Scalar3& force, Scalar& pair_eng, bool energy_shift, Scalar3& torque_i, Scalar3& torque_j)
             {
+            
+            // Set parameters
+            Scalar mu = Scalar(1.0);
+            Scalar nu = Scalar(2.0);
+            Scalar rgb_sig0 = params.lperp;
+            Scalar rgb_eps0 = params.epsilon;
+            Scalar k1 = params.lpar/params.lperp;
+            Scalar k1sq = k1*k1;
+            Scalar k2 = Scalar(5.0);
+            
+            // Derived parameters
+            Scalar chi = (k1sq - Scalar(1.0)) / (k1sq + Scalar(1.0));
+            Scalar xhi = (pow(k2, (Scalar(1.0)/mu)) - Scalar(1.0)) / (pow(k2, (Scalar(1.0)/mu)) + Scalar(1.0));
+            
             Scalar rsq = dot(dr,dr);
             Scalar r = fast::sqrt(rsq);
-            vec3<Scalar> unitr = fast::rsqrt(dot(dr,dr))*dr;
+            vec3<Scalar> sij = dr/r;
 
-            // obtain rotation matrices (space->body)
-            rotmat3<Scalar> rotA(conj(qi));
-            rotmat3<Scalar> rotB(conj(qj));
+    	    // obtain orientations of particles
+    	    Scalar4 oa = quat_to_scalar4(qi);
+    	    Scalar half_a_angle = atan2(oa.w,oa.x);
+    	    Scalar a_angle = Scalar(2.0)*half_a_angle;
+    	    vec3<Scalar> u1 = vec3<Scalar>(fast::cos(a_angle),fast::sin(a_angle),Scalar(0.0));
+    
+    	    Scalar4 ob = quat_to_scalar4(qj);
+    	    Scalar half_b_angle = atan2(ob.w,ob.x);
+    	    Scalar b_angle = Scalar(2.0)*half_b_angle;
+    	    vec3<Scalar> u2 = vec3<Scalar>(fast::cos(b_angle),fast::sin(b_angle),Scalar(0.0));
+    	    
+    	    Scalar ci	= dot(sij,u1);
+    	    Scalar cj	= dot(sij,u2);
+	        Scalar cij	= dot(u1,u2);
+	        Scalar cp	= ci + cj;
+	        Scalar cm	= ci - cj;
+	        
+	        // Sigma formula
+            Scalar cpchi = cp / (Scalar(1.0) + chi*cij);
+            Scalar cmchi = cm / (Scalar(1.0) - chi*cij);
+            Scalar sigma = rgb_sig0 / sqrt(Scalar(1.0) - Scalar(0.5)*chi*(cp*cpchi+cm*cmchi));
 
-            // last row of rotation matrix
-            vec3<Scalar> a3 = rotA.row2;
-            vec3<Scalar> b3 = rotB.row2;
-
-            Scalar ca = dot(a3,unitr);
-            Scalar cb = dot(b3,unitr);
-            Scalar cab = dot(a3,b3);
-            Scalar lperpsq = params.lperp*params.lperp;
-            Scalar lparsq = params.lpar*params.lpar;
-            Scalar chi=(lparsq - lperpsq)/(lparsq+lperpsq);
-            Scalar chic = chi*cab;
-
-            Scalar chi_fact = chi/(Scalar(1.0)-chic*chic);
-            vec3<Scalar> kappa = Scalar(1.0/2.0)*r/lperpsq
-                *(unitr - chi_fact*((ca-chic*cb)*a3+(cb-chic*ca)*b3));
-
-            Scalar phi = Scalar(1.0/2.0)*dot(dr, kappa)/rsq;
-            Scalar sigma = fast::rsqrt(phi);
-
-            Scalar sigma_min = Scalar(2.0)*HOOMD_GB_MIN(params.lperp,params.lpar);
-
-            Scalar zeta = (r-sigma+sigma_min)/sigma_min;
-            Scalar zetasq = zeta*zeta;
-
-            Scalar rcut = fast::sqrt(rcutsq);
-            Scalar dUdphi,dUdr;
-
-            // define r_cut to be along the long axis
-            Scalar sigma_max = Scalar(2.0)*HOOMD_GB_MAX(params.lperp,params.lpar);
-            Scalar zetacut = (rcut-sigma_max+sigma_min)/sigma_min;
-            Scalar zetacutsq = zetacut*zetacut;
-
-            // compute the force divided by r in force_divr
-            if (zetasq < zetacutsq && params.epsilon != Scalar(0.0))
+            // Orientation dependant cutoff (See Bott et al PRE 98, 2018)
+            Scalar CUTOFFCONSTANT = Scalar(1.12246204830937298); // 2^(1/6)
+    	    Scalar rcut  = (CUTOFFCONSTANT - Scalar(1.0)) * rgb_sig0 + sigma;
+    	    
+    	    // Declare variables for later use
+    	    Scalar Fx = Scalar(0.0);
+    	    Scalar Fy = Scalar(0.0);
+    	    Scalar Gx1 = Scalar(0.0);
+    	    Scalar Gy1 = Scalar(0.0);
+    	    Scalar Gx2 = Scalar(0.0);
+    	    Scalar Gy2 = Scalar(0.0);
+    	    
+    	    if (r < rcut && rgb_eps0 != Scalar(0.0))
                 {
-                Scalar zeta2inv = Scalar(1.0)/zetasq;
-                Scalar zeta6inv = zeta2inv * zeta2inv *zeta2inv;
+                    // Epsilon formula
+                    Scalar eps1    = Scalar(1.0) / sqrt(Scalar(1.0) - (chi*cij*chi*cij));
+                    Scalar cpxhi   = cp / (Scalar(1.0) + xhi*cij);
+                    Scalar cmxhi   = cm / (Scalar(1.0) - xhi*cij);
+                    Scalar eps2    = Scalar(1.0) - Scalar(0.5)*xhi*(cp*cpxhi + cm*cmxhi);
+                    Scalar epsilon = rgb_eps0 * pow(eps1,nu) * pow(eps2,mu);
+                    
+                    // Potential at rij
+                    Scalar rho      = (r - sigma + rgb_sig0) / rgb_sig0;
+                    Scalar rinv     = Scalar(1.0)/rho;
+                    Scalar rho3     = rinv * rinv * rinv;
+                    Scalar rho6     = rho3 * rho3;
+                    Scalar rho12    = rho6 * rho6;
+                    Scalar rhoterm  = Scalar(4.0)*(rho12 - rho6);
+                    Scalar drhoterm = -Scalar(24.0) * (Scalar(2.0) * rho12 - rho6) / rho;
+                    Scalar pot = epsilon * rhoterm;
+                    
+                    // Derivatives of sigma
+                    Scalar sig_prefac = Scalar(0.5)*chi*sigma*sigma*sigma;
+                    Scalar dsig_dci  = sig_prefac*(cpchi+cmchi);
+                    Scalar dsig_dcj  = sig_prefac*(cpchi-cmchi);
+                    sig_prefac = sig_prefac*(Scalar(0.5)*chi);
+                    Scalar dsig_dcij = -sig_prefac*(cpchi*cpchi-cmchi*cmchi);
 
-                dUdr  = -Scalar(24.0)*params.epsilon*(zeta6inv/zeta*(Scalar(2.0)*zeta6inv-Scalar(1.0)))/sigma_min;
-                dUdphi = dUdr*Scalar(1.0/2.0)*sigma*sigma*sigma;
-
-                pair_eng = Scalar(4.0)*params.epsilon*zeta6inv * (zeta6inv - Scalar(1.0));
+                    // Derivatives of epsilon
+                    Scalar eps_prefac = -mu*xhi*pow(eps1,nu)*pow(eps2,(mu-Scalar(1.0)));
+                    Scalar deps_dci  = eps_prefac*(cpxhi+cmxhi);
+                    Scalar deps_dcj  = eps_prefac*(cpxhi-cmxhi);
+                    eps_prefac = eps_prefac*(Scalar(0.5)*xhi);
+                    Scalar deps_dcij = -eps_prefac*(cpxhi*cpxhi-cmxhi*cmxhi);
+                    deps_dcij = deps_dcij + nu*chi*chi*(pow(eps1,(nu+Scalar(2.0))))*(pow(eps2,mu))*cij;
+    
+                    // Derivatives of potential
+                    Scalar dpot_drij   = epsilon * drhoterm;
+                    Scalar dpot_dci    = rhoterm * deps_dci  - epsilon * drhoterm * dsig_dci;
+                    Scalar dpot_dcj    = rhoterm * deps_dcj  - epsilon * drhoterm * dsig_dcj;
+                    Scalar dpot_dcij   = rhoterm * deps_dcij - epsilon * drhoterm * dsig_dcij;
+                    
+                    // Components of directors
+                	Scalar u1x	= u1.x;
+                	Scalar u1y	= u1.y;
+                	Scalar u2x	= u2.x;
+                	Scalar u2y	= u2.y;
+                    
+                    // Forces
+                    Fx  = - dpot_drij*sij.x - dpot_dci*(u1x-ci*sij.x)/r - dpot_dcj*(u2x-cj*sij.x)/r;
+                    Fy  = - dpot_drij*sij.y - dpot_dci*(u1y-ci*sij.y)/r - dpot_dcj*(u2y-cj*sij.y)/r;
+                    
+                    // Directional derivatives
+                    Gx1  = dpot_dci*sij.x + dpot_dcij*u2x;
+                    Gy1  = dpot_dci*sij.y + dpot_dcij*u2y;
+                    
+                    Gx2  = dpot_dcj*sij.x + dpot_dcij*u1x;
+                    Gy2  = dpot_dcj*sij.y + dpot_dcij*u1y;
 
                 if (energy_shift)
                     {
-                    Scalar zetacut2inv = Scalar(1.0)/zetacutsq;
-                    Scalar zetacut6inv = zetacut2inv * zetacut2inv * zetacut2inv;
-                    pair_eng -= Scalar(4.0)*params.epsilon*zetacut6inv * (zetacut6inv - Scalar(1.0));
+                        // Potential at cutoff
+                        rho      = (rcut - sigma + rgb_sig0) / rgb_sig0;
+                        rinv     = Scalar(1.0)/rho;
+                        rho3     = rinv * rinv * rinv;
+                        rho6     = rho3 * rho3;
+                        rho12    = rho6 * rho6;
+                        Scalar cutterm  = Scalar(4.0)*(rho12 - rho6);
+                        Scalar dcutterm = -Scalar(24.0) * (Scalar(2.0) * rho12 - rho6) / rho;
+                        pot = pot - epsilon * cutterm;
+                        
+                        // Derivatives of potential at cutoff
+                        dpot_drij   = epsilon * dcutterm;
+                        dpot_dci    = cutterm * deps_dci - epsilon * dcutterm * dsig_dci;
+                        dpot_dcj    = cutterm * deps_dcj - epsilon * dcutterm * dsig_dcj;
+                        dpot_dcij   = cutterm * deps_dcij - epsilon * dcutterm * dsig_dcij;
+                    
+                        // Adjusting forces accounting for cutoff terms
+                        Fx = Fx + dpot_dci*(u1x-ci*sij.x)/r + dpot_dcj*(u2x-cj*sij.x)/r;
+                        Fy = Fy + dpot_dci*(u1y-ci*sij.y)/r + dpot_dcj*(u2y-cj*sij.y)/r;
+                    
+                        // Adjusting torques accounting for cutoff terms
+                        Gx1 = Gx1 - (dpot_dci*sij.x + dpot_dcij*u2x);
+                        Gy1 = Gy1 - (dpot_dci*sij.y + dpot_dcij*u2y);
+                        
+                        Gx2 = Gx2 - (dpot_dcj*sij.x + dpot_dcij*u1x);
+                        Gy2 = Gy2 - (dpot_dcj*sij.y + dpot_dcij*u1y);
                     }
                 }
             else
                 return false;
 
             // compute vector force and torque
-            Scalar r2inv = Scalar(1.0)/rsq;
-            vec3<Scalar> fK = -r2inv*dUdphi*kappa;
-            vec3<Scalar> f = -dUdr*unitr + fK + r2inv*dUdphi*unitr*dot(kappa,unitr);
-            force = vec_to_scalar3(f);
-
-            vec3<Scalar> rca = Scalar(1.0/2.0)* (-dr - r*chi_fact*((ca-chic*cb)*a3-(cb-chic*ca)*b3));
-            vec3<Scalar> rcb = rca + dr;
-            torque_i = vec_to_scalar3(cross(rca, fK));
-            torque_j = -vec_to_scalar3(cross(rcb, fK));
+            // Force
+            vec3<Scalar> F = vec3<Scalar>(Fx,Fy,Scalar(0.0));
+            force = vec_to_scalar3(F);
+            
+            // Torque
+            vec3<Scalar> G1 = vec3<Scalar>(Gx1,Gy1,Scalar(0.0));
+            vec3<Scalar> G2 = vec3<Scalar>(Gx2,Gy2,Scalar(0.0));
+            torque_i = vec_to_scalar3(cross(u1, G1));
+            torque_j = vec_to_scalar3(cross(u2, G2));
 
             return true;
             }
