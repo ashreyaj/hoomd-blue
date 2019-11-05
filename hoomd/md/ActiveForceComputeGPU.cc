@@ -115,6 +115,7 @@ void ActiveForceComputeGPU::setForces()
     assert(d_groupTags.data != NULL);
     bool orientationLink = (m_orientationLink == true);
     bool orientationReverseLink = (m_orientationReverseLink == true);
+    bool is2D = (m_sysdef->getNDimensions() == 2);
     unsigned int group_size = m_group->getNumMembers();
     unsigned int N = m_pdata->getN();
 
@@ -134,6 +135,7 @@ void ActiveForceComputeGPU::setForces()
                                      m_rz,
                                      orientationLink,
                                      orientationReverseLink,
+                                     is2D,
                                      N,
                                      m_block_size);
     }

@@ -32,6 +32,7 @@ using namespace hoomd;
     \param ry radius of the ellipsoid in y direction
     \param rz radius of the ellipsoid in z direction
     \param orientationLink check if particle orientation is linked to active force vector
+    \param is2D check if simulation is 2D or 3D
 */
 __global__ void gpu_compute_active_force_set_forces_kernel(const unsigned int group_size,
                                                     unsigned int *d_rtag,
@@ -49,6 +50,7 @@ __global__ void gpu_compute_active_force_set_forces_kernel(const unsigned int gr
                                                     Scalar rz,
                                                     bool orientationLink,
                                                     bool orientationReverseLink,
+                                                    bool is2D,
                                                     const unsigned int N)
     {
     unsigned int group_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -83,8 +85,6 @@ __global__ void gpu_compute_active_force_set_forces_kernel(const unsigned int gr
     	if (is2D) // 2D 
 	    {
 	        Scalar qx = d_orientation[idx].x;
-	        Scalar qy = d_orientation[idx].y;
-	        Scalar qz = d_orientation[idx].z;
 	        Scalar qw = d_orientation[idx].w;
 	        Scalar half_theta = atan2(qw,qx);
 	        Scalar theta = 2*half_theta;
@@ -322,6 +322,7 @@ cudaError_t gpu_compute_active_force_set_forces(const unsigned int group_size,
                                            Scalar rz,
                                            bool orientationLink,
                                            bool orientationReverseLink,
+                                           bool is2D,
                                            const unsigned int N,
                                            unsigned int block_size)
     {
@@ -347,6 +348,7 @@ cudaError_t gpu_compute_active_force_set_forces(const unsigned int group_size,
                                                                     rz,
                                                                     orientationLink,
                                                                     orientationReverseLink,
+                                                                    is2D,
                                                                     N);
     return cudaSuccess;
     }
