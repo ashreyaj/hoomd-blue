@@ -138,19 +138,21 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 
     // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
     // it is not the dimensionality of the system
+   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp * m_deltaT));
+    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par * m_deltaT));
     if (m_noiseless_t)
 	{
         coeff_par = Scalar(0.0);
         coeff_perp = Scalar(0.0);
 	}
-   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp * m_deltaT));
-    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par * m_deltaT));
     Scalar vr_x = rpar*coeff_par*or_x + rperp*coeff_perp*orp_x;
     Scalar vr_y = rpar*coeff_par*or_y + rperp*coeff_perp*orp_y;
    	Scalar vr_z = rpar*coeff_par*or_z + rperp*coeff_perp*orp_z;
 
     if (D < 3)
+	{
         vr_z = Scalar(0.0);
+	}
 
 	// Convert force from lab frame to body frame so that we can apply the mobility matrix known.
 	Scalar fxl = h_net_force.data[j].x;
@@ -185,9 +187,13 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         h_vel.data[j].x = normal(rng);
         h_vel.data[j].y = normal(rng);
         if (D > 2)
+            {
             h_vel.data[j].z = normal(rng);
+            }
         else
+            {
             h_vel.data[j].z = 0;
+            }
 
         // rotational random force and orientation quaternion updates
         if (m_aniso)

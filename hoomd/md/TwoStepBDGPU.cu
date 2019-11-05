@@ -181,10 +181,10 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 	        Scalar rperp = uniform(rng);
 	
 	        // obtain orientation of particle
-			Scalar qx = d_orientation.data[j].x;
-			Scalar qy = d_orientation.data[j].y;
-			Scalar qz = d_orientation.data[j].z;
-			Scalar qw = d_orientation.data[j].w;
+			Scalar qx = d_orientation[idx].x;
+			Scalar qy = d_orientation[idx].y;
+			Scalar qz = d_orientation[idx].z;
+			Scalar qw = d_orientation[idx].w;
 			Scalar half_theta = atan2(qw,qx);
 			Scalar theta = 2*half_theta;
 			Scalar or_x = fast::cos(theta);
@@ -198,9 +198,9 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 	
 		    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
 		    // it is not the dimensionality of the system
-		   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp*deltaT));
-		    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par*deltaT));
-		    if (m_noiseless_t)
+		   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma_perp*deltaT));
+		    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma_par*deltaT));
+		    if (d_noiseless_t)
 			{
 		        coeff_par = Scalar(0.0);
 		        coeff_perp = Scalar(0.0);
@@ -211,7 +211,6 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 			// Convert force from lab frame to body frame so that we can apply the mobility matrix known.
 			Scalar fxl = net_force.x;
 			Scalar fyl = net_force.y;
-			Scalar fzl = net_force.z;
 		
 			Scalar fxb = (fxl*or_x) + (fyl*or_y);
 			Scalar fyb = -(fxl*or_y) + (fyl*or_x);
@@ -234,7 +233,7 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 	
 	        // draw a new random velocity for particle j
 	        Scalar mass =  vel.w;
-	        Scalar sigma = fast::sqrt(currentTemp/mass);
+	        Scalar sigma = fast::sqrt(T/mass);
 	        NormalDistribution<Scalar> normal(sigma);
 		    vel.x = normal(rng);
 		    vel.y = normal(rng);
@@ -266,9 +265,9 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 
 				if (D > 2)
 				{
-                	Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/deltaT),
-                    	                           fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*currentTemp/deltaT),
-                        	                       fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*currentTemp/deltaT));
+                	Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*T/deltaT),
+                    	                           fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*T/deltaT),
+                        	                       fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*T/deltaT));
 	                if (d_noiseless_r)
 	                    sigma_r = make_scalar3(0,0,0);
 	
@@ -295,15 +294,13 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 
 				else
                 {
-					sigma_r = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/deltaT);
+					Scalar sigma_r = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*T/deltaT);
 	            	if (d_noiseless_r)
 	                	sigma_r = Scalar(0.0);
-					bf_torque = sigma_r*uniform(rng);
+					Scalar bf_torque = sigma_r*uniform(rng);
 	                t.x = 0;
 	                t.y = 0;
 	                Scalar qx = d_orientation[idx].x;
-	                Scalar qy = d_orientation[idx].y;
-	                Scalar qz = d_orientation[idx].z;
 	                Scalar qw = d_orientation[idx].w;
 	                Scalar half_theta = atan2(qw,qx);
 	                Scalar theta = 2*half_theta;
