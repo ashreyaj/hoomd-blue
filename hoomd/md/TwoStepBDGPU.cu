@@ -235,9 +235,9 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 	        Scalar mass =  vel.w;
 	        Scalar sigma = fast::sqrt(T/mass);
 	        NormalDistribution<Scalar> normal(sigma);
-		    vel.x = normal(rng);
-		    vel.y = normal(rng);
-		    vel.z = 0;
+		    vel.x = vxl;
+		    vel.y = vyl;
+		    vel.z = Scalar(0.0);
 		}
 	
 		// write out data

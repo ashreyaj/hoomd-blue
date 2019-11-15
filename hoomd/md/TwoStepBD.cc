@@ -184,8 +184,8 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         Scalar mass =  h_vel.data[j].w;
         Scalar sigma = fast::sqrt(currentTemp/mass);
         NormalDistribution<Scalar> normal(sigma);
-        h_vel.data[j].x = normal(rng);
-        h_vel.data[j].y = normal(rng);
+        h_vel.data[j].x = vxl;
+        h_vel.data[j].y = vyl;
         if (D > 2)
             {
             h_vel.data[j].z = normal(rng);
