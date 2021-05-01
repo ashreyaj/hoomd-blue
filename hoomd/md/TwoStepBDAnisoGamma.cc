@@ -4,7 +4,7 @@
 
 // Maintainer: joaander
 
-#include "TwoStepBD.h"
+#include "TwoStepBDAnisoGamma.h"
 #include "hoomd/VectorMath.h"
 #include "QuaternionMath.h"
 #include "hoomd/HOOMDMath.h"
@@ -21,8 +21,8 @@ using namespace hoomd;
 namespace py = pybind11;
 using namespace std;
 
-/*! \file TwoStepBD.h
-    \brief Contains code for the TwoStepBD class
+/*! \file TwoStepBDAnisoGamma.h
+    \brief Contains code for the TwoStepBDAnisoGamma class
 */
 
 /*! \param sysdef SystemDefinition this method will act on. Must not be NULL.
@@ -34,7 +34,7 @@ using namespace std;
     \param noiseless_t If set true, there will be no translational noise (random force)
     \param noiseless_r If set true, there will be no rotational noise (random torque)
 */
-TwoStepBD::TwoStepBD(std::shared_ptr<SystemDefinition> sysdef,
+TwoStepBDAnisoGamma::TwoStepBDAnisoGamma(std::shared_ptr<SystemDefinition> sysdef,
                            std::shared_ptr<ParticleGroup> group,
                            std::shared_ptr<Variant> T,
                            unsigned int seed,
@@ -46,12 +46,12 @@ TwoStepBD::TwoStepBD(std::shared_ptr<SystemDefinition> sysdef,
   : TwoStepLangevinBase(sysdef, group, T, seed, use_lambda, lambda),
     m_noiseless_t(noiseless_t), m_noiseless_r(noiseless_r)
     {
-    m_exec_conf->msg->notice(5) << "Constructing TwoStepBD" << endl;
+    m_exec_conf->msg->notice(5) << "Constructing TwoStepBDAnisoGamma" << endl;
     }
 
-TwoStepBD::~TwoStepBD()
+TwoStepBDAnisoGamma::~TwoStepBDAnisoGamma()
     {
-    m_exec_conf->msg->notice(5) << "Destroying TwoStepBD" << endl;
+    m_exec_conf->msg->notice(5) << "Destroying TwoStepBDAnisoGamma" << endl;
     }
 
 /*! \param timestep Current time step
@@ -60,7 +60,7 @@ TwoStepBD::~TwoStepBD()
     The integration method here is from the book "The Langevin and Generalised Langevin Approach to the Dynamics of
     Atomic, Polymeric and Colloidal Systems", chapter 6.
 */
-void TwoStepBD::integrateStepOne(unsigned int timestep)
+void TwoStepBDAnisoGamma::integrateStepOne(unsigned int timestep)
     {
     unsigned int group_size = m_group->getNumMembers();
 
@@ -100,7 +100,7 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         unsigned int ptag = h_tag.data[j];
 
         // Initialize the RNG
-        RandomGenerator rng(RNGIdentifier::TwoStepBD, m_seed, ptag, timestep);
+        RandomGenerator rng(RNGIdentifier::TwoStepBDAnisoGamma, m_seed, ptag, timestep);
 
         // compute the random force
         UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
@@ -117,7 +117,7 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
             }
 
 
-    // obtain rotation matrices (space->body)
+        // obtain rotation matrices (space->body)
 	Scalar qx = h_orientation.data[j].x;
 	Scalar qy = h_orientation.data[j].y;
 	Scalar qz = h_orientation.data[j].z;
@@ -132,10 +132,14 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 	Scalar orp_z = Scalar(0.0);
 
 
+	// In this hack, the value of gamma is actually the value of gamma_par/gamma_perp
+	Scalar gamma_perp = Scalar(1.0);
+	Scalar gamma_par = gamma * gamma_perp;
+
     // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
     // it is not the dimensionality of the system
-   	Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma * m_deltaT));
-   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma * m_deltaT));
+   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_perp * m_deltaT));
+    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*currentTemp/(gamma_par * m_deltaT));
     if (m_noiseless_t)
 	{
         coeff_par = Scalar(0.0);
@@ -160,15 +164,15 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 	Scalar fzb = Scalar(0.0);
 
 	// Compute velocity in body frame
-	Scalar vxb = fxb / gamma;
-	Scalar vyb = fyb / gamma;
+	Scalar vxb = fxb / gamma_par;
+	Scalar vyb = fyb / gamma_perp;
 	Scalar vzb = Scalar(0.0);
 
 	// Convert velocity to lab frame
 	Scalar vxl = vxb*or_x - vyb*or_y;
 	Scalar vyl = vxb*or_y + vyb*or_x;
 	Scalar vzl = Scalar(0.0);
-    // update position
+        // update position
 	h_pos.data[j].x += (vxl + vr_x)*m_deltaT;
 	h_pos.data[j].y += (vyl + vr_y)*m_deltaT;
 	h_pos.data[j].z += (vzl + vr_z)*m_deltaT;
@@ -289,14 +293,14 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 
 /*! \param timestep Current time step
 */
-void TwoStepBD::integrateStepTwo(unsigned int timestep)
+void TwoStepBDAnisoGamma::integrateStepTwo(unsigned int timestep)
     {
     // there is no step 2 in Brownian dynamics.
     }
 
-void export_TwoStepBD(py::module& m)
+void export_TwoStepBDAnisoGamma(py::module& m)
     {
-    py::class_<TwoStepBD, std::shared_ptr<TwoStepBD> >(m, "TwoStepBD", py::base<TwoStepLangevinBase>())
+    py::class_<TwoStepBDAnisoGamma, std::shared_ptr<TwoStepBDAnisoGamma> >(m, "TwoStepBDAnisoGamma", py::base<TwoStepLangevinBase>())
     .def(py::init< std::shared_ptr<SystemDefinition>,
                             std::shared_ptr<ParticleGroup>,
                             std::shared_ptr<Variant>,

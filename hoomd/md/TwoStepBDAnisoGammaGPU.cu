@@ -4,7 +4,7 @@
 
 // Maintainer: joaander
 
-#include "TwoStepBDGPU.cuh"
+#include "TwoStepBDAnisoGammaGPU.cuh"
 #include "hoomd/VectorMath.h"
 #include "hoomd/HOOMDMath.h"
 
@@ -14,7 +14,7 @@ using namespace hoomd;
 
 #include <assert.h>
 
-/*! \file TwoSteBDGPU.cu
+/*! \file TwoSteBDAnisoGammaGPU.cu
     \brief Defines GPU kernel code for Brownian integration on the GPU. Used by TwoStepBDGPU.
 */
 
@@ -52,7 +52,7 @@ using namespace hoomd;
     This kernel must be launched with enough dynamic shared memory per block to read in d_gamma
 */
 extern "C" __global__
-void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
+void gpu_brownian_anisogamma_step_one_kernel(Scalar4 *d_pos,
                                   Scalar4 *d_vel,
                                   int3 *d_image,
                                   const BoxDim box,
@@ -192,10 +192,14 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 			Scalar orp_x = -or_y; // orientation perpendicular to axis in 2D. e_perp = R.e_par where R is the rotation matrix
 			Scalar orp_y = or_x;
 	
+			// In this hack, the value of gamma is actually the value of gamma_par/gamma_perp
+			Scalar gamma_perp = Scalar(1.0);
+			Scalar gamma_par = gamma * gamma_perp;
+	
 		    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
 		    // it is not the dimensionality of the system
-		   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma*deltaT));
-		    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma*deltaT));
+		   	Scalar coeff_perp = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma_perp*deltaT));
+		    Scalar coeff_par = fast::sqrt(Scalar(3.0)*Scalar(2.0)*T/(gamma_par*deltaT));
 		    if (d_noiseless_t)
 			{
 		        coeff_par = Scalar(0.0);
@@ -212,8 +216,8 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 			Scalar fyb = -(fxl*or_y) + (fyl*or_x);
 	
 			// Compute velocity in body frame
-			Scalar vxb = fxb / gamma;
-			Scalar vyb = fyb / gamma;
+			Scalar vxb = fxb / gamma_par;
+			Scalar vyb = fyb / gamma_perp;
 		
 			// Convert velocity to lab frame
 			Scalar vxl = vxb*or_x - vyb*or_y;
@@ -356,7 +360,7 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 
     This is just a driver for gpu_brownian_step_one_kernel(), see it for details.
 */
-cudaError_t gpu_brownian_step_one(Scalar4 *d_pos,
+cudaError_t gpu_brownian_anisogamma_step_one(Scalar4 *d_pos,
                                   Scalar4 *d_vel,
                                   int3 *d_image,
                                   const BoxDim& box,
@@ -393,7 +397,7 @@ cudaError_t gpu_brownian_step_one(Scalar4 *d_pos,
         dim3 threads(run_block_size, 1, 1);
 
         // run the kernel
-        gpu_brownian_step_one_kernel<<< grid, threads, (unsigned int)(sizeof(Scalar)*langevin_args.n_types + sizeof(Scalar3)*langevin_args.n_types)>>>
+        gpu_brownian_anisogamma_step_one_kernel<<< grid, threads, (unsigned int)(sizeof(Scalar)*langevin_args.n_types + sizeof(Scalar3)*langevin_args.n_types)>>>
                                     (d_pos,
                                      d_vel,
                                      d_image,
