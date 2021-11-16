@@ -8,6 +8,7 @@
 #include "EvaluatorExternalPeriodic.h"
 #include "EvaluatorExternalElectricField.h"
 #include "EvaluatorPairLJ.h"
+#include "EvaluatorPairWHDF.h"
 #include "EvaluatorPairGauss.h"
 #include "EvaluatorPairYukawa.h"
 #include "EvaluatorPairSLJ.h"
@@ -22,6 +23,8 @@ template cudaError_t gpu_cpef<EvaluatorExternalPeriodic>(const external_potentia
 template cudaError_t gpu_cpef<EvaluatorExternalElectricField>(const external_potential_args_t& external_potential_args, const typename EvaluatorExternalElectricField::param_type *d_params, const typename EvaluatorExternalElectricField::field_type *d_field);
 //! Evaluator for Lennard-Jones pair potential.
 template cudaError_t gpu_cpef<EvaluatorWalls<EvaluatorPairLJ> >(const external_potential_args_t& external_potential_args, const typename EvaluatorWalls<EvaluatorPairLJ>::param_type *d_params, const typename EvaluatorWalls<EvaluatorPairLJ>::field_type *d_field);
+//! Evaluator for WHDF pair potential.
+template cudaError_t gpu_cpef<EvaluatorWalls<EvaluatorPairWHDF> >(const external_potential_args_t& external_potential_args, const typename EvaluatorWalls<EvaluatorPairWHDF>::param_type *d_params, const typename EvaluatorWalls<EvaluatorPairWHDF>::field_type *d_field);
 //! Evaluator for Gaussian pair potential.
 template cudaError_t gpu_cpef<EvaluatorWalls<EvaluatorPairGauss> >(const external_potential_args_t& external_potential_args, const typename EvaluatorWalls<EvaluatorPairGauss>::param_type *d_params, const typename EvaluatorWalls<EvaluatorPairGauss>::field_type *d_field);
 //! Evaluator for Yukawa pair potential.

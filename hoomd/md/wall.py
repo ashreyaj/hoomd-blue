@@ -697,6 +697,33 @@ class lj(wallpotential):
         lj2 = alpha * 4.0 * epsilon * math.pow(sigma, 6.0);
         return _md.make_wall_lj_params(_hoomd.make_scalar2(lj1, lj2), coeff['r_cut']*coeff['r_cut'], coeff['r_extrap']);
 
+class whdf(wallpotential):
+    def __init__(self, walls, r_cut=False, name=""):
+        hoomd.util.print_status_line();
+
+        # tell the base class how we operate
+
+        # initialize the base class
+        wallpotential.__init__(self, walls, r_cut, name);
+        # create the c++ mirror class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            self.cpp_force = _md.WallsPotentialWHDF(hoomd.context.current.system_definition, self.name);
+            self.cpp_class = _md.WallsPotentialWHDF;
+        else:
+
+            self.cpp_force = _md.WallsPotentialWHDFGPU(hoomd.context.current.system_definition, self.name);
+            self.cpp_class = _md.WallsPotentialWHDFGPU;
+
+        hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
+
+        # setup the coefficient options
+        self.required_coeffs += ['epsilon', 'sigma'];
+
+    def process_coeff(self, coeff):
+        epsilon = coeff['epsilon'];
+        sigma = coeff['sigma'];
+        return _md.make_wall_whdf_params(_hoomd.make_scalar2(epsilon, sigma), coeff['r_cut']*coeff['r_cut'], coeff['r_extrap']);
+
 class gauss(wallpotential):
     R""" Gaussian wall potential.
 
