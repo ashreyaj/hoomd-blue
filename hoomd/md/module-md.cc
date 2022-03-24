@@ -258,6 +258,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialPair<PotentialPairBuckingham>(m, "PotentialPairBuckingham");
     export_PotentialPair<PotentialPairLJ>(m, "PotentialPairLJ");
     export_PotentialPair<PotentialPairWHDF>(m, "PotentialPairWHDF");
+    export_PotentialPair<PotentialPairWHDFfinite>(m, "PotentialPairWHDFfinite");
     export_PotentialPair<PotentialPairLJ1208>(m, "PotentialPairLJ1208");
     export_PotentialPair<PotentialPairGauss>(m, "PotentialPairGauss");
     export_PotentialPair<PotentialPairSLJ>(m, "PotentialPairSLJ");
@@ -306,6 +307,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialExternalWall<EvaluatorPairForceShiftedLJ>(m, "WallsPotentialForceShiftedLJ");
     export_PotentialExternalWall<EvaluatorPairMie>(m, "WallsPotentialMie");
     export_PotentialExternalWall<EvaluatorPairWHDF>(m, "WallsPotentialWHDF");
+    export_PotentialExternalWall<EvaluatorPairWHDFfinite>(m, "WallsPotentialWHDFfinite");
     export_PotentialExternalWall<EvaluatorPairGauss>(m, "WallsPotentialGauss");
     export_PotentialExternalWall<EvaluatorPairMorse>(m, "WallsPotentialMorse");
 
@@ -319,6 +321,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialPairGPU<PotentialPairLJGPU, PotentialPairLJ>(m, "PotentialPairLJGPU");
     export_PotentialPairGPU<PotentialPairLJ1208GPU, PotentialPairLJ1208>(m, "PotentialPairLJ1208GPU");
     export_PotentialPairGPU<PotentialPairWHDFGPU, PotentialPairWHDF>(m, "PotentialPairWHDFGPU");
+    export_PotentialPairGPU<PotentialPairWHDFfiniteGPU, PotentialPairWHDFfinite>(m, "PotentialPairWHDFfiniteGPU");
     export_PotentialPairGPU<PotentialPairGaussGPU, PotentialPairGauss>(m, "PotentialPairGaussGPU");
     export_PotentialPairGPU<PotentialPairSLJGPU, PotentialPairSLJ>(m, "PotentialPairSLJGPU");
     export_PotentialPairGPU<PotentialPairYukawaGPU, PotentialPairYukawa>(m, "PotentialPairYukawaGPU");
@@ -366,6 +369,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialExternalGPU<WallsPotentialForceShiftedLJGPU, WallsPotentialForceShiftedLJ>(m, "WallsPotentialForceShiftedLJGPU");
     export_PotentialExternalGPU<WallsPotentialMieGPU, WallsPotentialMie>(m, "WallsPotentialMieGPU");
     export_PotentialExternalGPU<WallsPotentialWHDFGPU, WallsPotentialGauss>(m, "WallsPotentialWHDFGPU");
+    export_PotentialExternalGPU<WallsPotentialWHDFfiniteGPU, WallsPotentialGauss>(m, "WallsPotentialWHDFfiniteGPU");
     export_PotentialExternalGPU<WallsPotentialGaussGPU, WallsPotentialGauss>(m, "WallsPotentialGaussGPU");
     export_PotentialExternalGPU<WallsPotentialMorseGPU, WallsPotentialMorse>(m, "WallsPotentialMorseGPU");
 #endif

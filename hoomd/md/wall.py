@@ -724,6 +724,35 @@ class whdf(wallpotential):
         sigma = coeff['sigma'];
         return _md.make_wall_whdf_params(_hoomd.make_scalar2(epsilon, sigma), coeff['r_cut']*coeff['r_cut'], coeff['r_extrap']);
 
+class whdffinite(wallpotential):
+    def __init__(self, walls, r_cut=False, name=""):
+        hoomd.util.print_status_line();
+
+        # tell the base class how we operate
+
+        # initialize the base class
+        wallpotential.__init__(self, walls, r_cut, name);
+
+        # create the c++ mirror class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            self.cpp_force = _md.WallsPotentialWHDFfinite(hoomd.context.current.system_definition, self.name);
+            self.cpp_class = _md.WallsPotentialWHDFfinite;
+        else:
+
+            self.cpp_force = _md.WallsPotentialWHDFfiniteGPU(hoomd.context.current.system_definition, self.name);
+            self.cpp_class = _md.WallsPotentialWHDFfiniteGPU;
+
+        hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
+
+        # setup the coefficient options
+        self.required_coeffs += ['epsilon', 'sigma', 'ron'];
+
+    def process_coeff(self, coeff):
+        epsilon = coeff['epsilon'];
+        sigma = coeff['sigma'];
+        ron = coeff['ron'];
+        return _md.make_wall_whdffinite_params(_hoomd.make_scalar3(epsilon, sigma, ron), coeff['r_cut']*coeff['r_cut'], coeff['r_extrap']);
+
 class gauss(wallpotential):
     R""" Gaussian wall potential.
 
@@ -797,6 +826,10 @@ class slj(wallpotential):
         wall_force_slj.force_coeff.set('A', epsilon=2.0, sigma=1.0, r_cut=3.0)
         wall_force_slj.force_coeff.set('B', epsilon=1.0, sigma=1.0, r_cut=2**(1.0/6.0))
 
+        if d_max is None :
+            sysdef = hoomd.context.current.system_definition;
+            d_max = sysdef.getParticleData().getMaxDiameter()
+            hoomd.context.msg.notice(2, "Notice: slj set d_max=" + str(d_max) + "\n");
     """
     def __init__(self, walls, r_cut=False, d_max=None, name=""):
         hoomd.util.print_status_line();

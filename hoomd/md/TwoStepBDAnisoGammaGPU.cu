@@ -351,14 +351,14 @@ void gpu_brownian_anisogamma_step_one_kernel(Scalar4 *d_pos,
     \param d_torque Device array of net torque on each particle
     \param d_inertia Device array of moment of inertial of each particle
     \param d_angmom Device array of transformed angular momentum quaternion of each particle (see online documentation)
-    \param langevin_args Collected arguments for gpu_brownian_step_one_kernel()
+    \param langevin_args Collected arguments for gpu_brownian_anisogamma_step_one_kernel()
     \param aniso If set true, the system would go through rigid body updates for its orientation
     \param deltaT Amount of real time to step forward in one time step
     \param D Dimensionality of the system
     \param d_noiseless_t If set true, there will be no translational noise (random force)
     \param d_noiseless_r If set true, there will be no rotational noise (random torque)
 
-    This is just a driver for gpu_brownian_step_one_kernel(), see it for details.
+    This is just a driver for gpu_brownian_anisogamma_step_one_kernel(), see it for details.
 */
 cudaError_t gpu_brownian_anisogamma_step_one(Scalar4 *d_pos,
                                   Scalar4 *d_vel,

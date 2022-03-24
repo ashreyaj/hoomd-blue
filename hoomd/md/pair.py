@@ -703,6 +703,48 @@ class whdf(pair):
 
         return _hoomd.make_scalar2(epsilon, sigma);
 
+class whdffinite(pair):
+    R""" WHDFfinite pair potential.
+
+    Args:
+        r_cut (float): Default cutoff radius (in distance units).
+        ron (float): Default beyond which the potential operates (in distance units).
+        nlist (:py:mod:`hoomd.md.nlist`): Neighbor list
+        name (str): Name of the force instance.
+
+    :py:class:`whdffinite` specifies that a WHDFfinite pair potential should be applied between every
+    non-excluded particle pair in the simulation.
+
+    """
+    def __init__(self, r_cut, nlist, name=None):
+        hoomd.util.print_status_line();
+
+        # tell the base class how we operate
+
+        # initialize the base class
+        pair.__init__(self, r_cut, nlist, name);
+
+        # create the c++ mirror class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            self.cpp_force = _md.PotentialPairWHDFfinite(hoomd.context.current.system_definition, self.nlist.cpp_nlist, self.name);
+            self.cpp_class = _md.PotentialPairWHDFfinite;
+        else:
+            self.nlist.cpp_nlist.setStorageMode(_md.NeighborList.storageMode.full);
+            self.cpp_force = _md.PotentialPairWHDFfiniteGPU(hoomd.context.current.system_definition, self.nlist.cpp_nlist, self.name);
+            self.cpp_class = _md.PotentialPairWHDFfiniteGPU;
+
+        hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
+
+        # setup the coefficient options
+        self.required_coeffs = ['epsilon', 'sigma', 'ron'];
+
+    def process_coeff(self, coeff):
+        epsilon = coeff['epsilon'];
+        sigma = coeff['sigma'];
+        ron = coeff['ron'];
+
+        return _hoomd.make_scalar3(epsilon, sigma, ron);
+
 class gauss(pair):
     R""" Gaussian pair potential.
 

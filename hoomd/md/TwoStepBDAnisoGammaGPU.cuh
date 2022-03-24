@@ -5,7 +5,7 @@
 // Maintainer: joaander
 
 /*! \file TwoStepBDAnisoGammaGPU.cuh
-    \brief Declares GPU kernel code for Brownian dynamics on the GPU. Used by TwoStepBDGPU.
+    \brief Declares GPU kernel code for Brownian dynamics on the GPU. Used by TwoStepBDAnisoGammaGPU.
 */
 
 #include "hoomd/ParticleData.cuh"
@@ -17,7 +17,7 @@
 #define __TWO_STEP_BD_ANISOGAMMA_GPU_CUH__
 
 //! Kernel driver for the first part of the Brownian update called by TwoStepBDGPU
-cudaError_t gpu_brownian_step_one(Scalar4 *d_pos,
+cudaError_t gpu_brownian_anisogamma_step_one(Scalar4 *d_pos,
                                   Scalar4 *d_vel,
                                   int3 *d_image,
                                   const BoxDim &box,

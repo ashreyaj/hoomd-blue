@@ -109,7 +109,7 @@ void TwoStepBDAnisoGammaGPU::integrateStepOne(unsigned int timestep)
     m_exec_conf->beginMultiGPU();
 
     // perform the update on the GPU
-    gpu_brownian_step_one(d_pos.data,
+    gpu_brownian_anisogamma_step_one(d_pos.data,
                           d_vel.data,
                           d_image.data,
                           box,

@@ -37,6 +37,7 @@ typedef PotentialExternal<EvaluatorWalls<EvaluatorPairForceShiftedLJ> > WallsPot
 typedef PotentialExternal<EvaluatorWalls<EvaluatorPairMie> > WallsPotentialMie;
 typedef PotentialExternal<EvaluatorWalls<EvaluatorPairGauss> > WallsPotentialGauss;
 typedef PotentialExternal<EvaluatorWalls<EvaluatorPairWHDF> > WallsPotentialWHDF;
+typedef PotentialExternal<EvaluatorWalls<EvaluatorPairWHDFfinite> > WallsPotentialWHDFfinite;
 typedef PotentialExternal<EvaluatorWalls<EvaluatorPairYukawa> > WallsPotentialYukawa;
 typedef PotentialExternal<EvaluatorWalls<EvaluatorPairMorse> > WallsPotentialMorse;
 
@@ -50,6 +51,7 @@ typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairSLJ> > WallsPotentialSL
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairForceShiftedLJ> > WallsPotentialForceShiftedLJGPU;
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairMie> > WallsPotentialMieGPU;
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairWHDF> > WallsPotentialWHDFGPU;
+typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairWHDFfinite> > WallsPotentialWHDFfiniteGPU;
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairGauss> > WallsPotentialGaussGPU;
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairYukawa> > WallsPotentialYukawaGPU;
 typedef PotentialExternalGPU<EvaluatorWalls<EvaluatorPairMorse> > WallsPotentialMorseGPU;
