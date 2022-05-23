@@ -5,7 +5,7 @@
 // Maintainer: joaander
 
 #include <iostream>
-#include "TwoStepBD.h"
+#include "TwoStepBDGaussian.h"
 #include "hoomd/VectorMath.h"
 #include "QuaternionMath.h"
 #include "hoomd/HOOMDMath.h"
@@ -22,8 +22,8 @@ using namespace hoomd;
 namespace py = pybind11;
 using namespace std;
 
-/*! \file TwoStepBD.h
-    \brief Contains code for the TwoStepBD class
+/*! \file TwoStepBDGaussian.h
+    \brief Contains code for the TwoStepBDGaussian class
 */
 
 /*! \param sysdef SystemDefinition this method will act on. Must not be NULL.
@@ -35,7 +35,7 @@ using namespace std;
     \param noiseless_t If set true, there will be no translational noise (random force)
     \param noiseless_r If set true, there will be no rotational noise (random torque)
 */
-TwoStepBD::TwoStepBD(std::shared_ptr<SystemDefinition> sysdef,
+TwoStepBDGaussian::TwoStepBDGaussian(std::shared_ptr<SystemDefinition> sysdef,
                            std::shared_ptr<ParticleGroup> group,
                            std::shared_ptr<Variant> T,
                            unsigned int seed,
@@ -47,12 +47,12 @@ TwoStepBD::TwoStepBD(std::shared_ptr<SystemDefinition> sysdef,
   : TwoStepLangevinBase(sysdef, group, T, seed, use_lambda, lambda),
     m_noiseless_t(noiseless_t), m_noiseless_r(noiseless_r)
     {
-    m_exec_conf->msg->notice(5) << "Constructing TwoStepBD" << endl;
+    m_exec_conf->msg->notice(5) << "Constructing TwoStepBDGaussian" << endl;
     }
 
-TwoStepBD::~TwoStepBD()
+TwoStepBDGaussian::~TwoStepBDGaussian()
     {
-    m_exec_conf->msg->notice(5) << "Destroying TwoStepBD" << endl;
+    m_exec_conf->msg->notice(5) << "Destroying TwoStepBDGaussian" << endl;
     }
 
 /*! \param timestep Current time step
@@ -61,7 +61,7 @@ TwoStepBD::~TwoStepBD()
     The integration method here is from the book "The Langevin and Generalised Langevin Approach to the Dynamics of
     Atomic, Polymeric and Colloidal Systems", chapter 6.
 */
-void TwoStepBD::integrateStepOne(unsigned int timestep)
+void TwoStepBDGaussian::integrateStepOne(unsigned int timestep)
     {
     unsigned int group_size = m_group->getNumMembers();
 
@@ -101,10 +101,11 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         unsigned int ptag = h_tag.data[j];
 
         // Initialize the RNG
-        RandomGenerator rng(RNGIdentifier::TwoStepBD, m_seed, ptag, timestep);
+        RandomGenerator rng(RNGIdentifier::TwoStepBDGaussian, m_seed, ptag, timestep);
 
         // compute the random force
         UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
+        NormalDistribution<Scalar> stdnormal(1);
 
         Scalar gamma;
         if (m_use_lambda)
@@ -115,16 +116,14 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
             gamma = h_gamma.data[type];
             }
 
-    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
-    // it is not the dimensionality of the system
-	Scalar coeff = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma*currentTemp/m_deltaT);
+	Scalar coeff = fast::sqrt(Scalar(2.0)*gamma*currentTemp/m_deltaT);
     if (m_noiseless_t)
 	{
         coeff = Scalar(0.0);
 	}
-    Scalar rx = uniform(rng);
-	Scalar ry = uniform(rng);
-	Scalar rz = uniform(rng);
+    Scalar rx = stdnormal(rng);
+	Scalar ry = stdnormal(rng);
+	Scalar rz = stdnormal(rng);
 
     if (D < 3)
 	{
@@ -147,10 +146,6 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         Scalar mass =  h_vel.data[j].w;
         Scalar sigma = fast::sqrt(currentTemp/mass);
         NormalDistribution<Scalar> normal(sigma);
-            if (h_pos.data[j].w == 1)
-            {
-                std::cout << "xvel: " << h_net_force.data[j].x/gamma << " yvel: " << h_net_force.data[j].y/gamma << std::endl;
-            }
         h_vel.data[j].x = h_net_force.data[j].x/gamma;
         h_vel.data[j].y = h_net_force.data[j].y/gamma;
         h_vel.data[j].y = Scalar(0.0);
@@ -166,6 +161,7 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
         // rotational random force and orientation quaternion updates
         if (m_aniso)
             {
+            NormalDistribution<Scalar> stdnormal(1);
             unsigned int type_r = __scalar_as_int(h_pos.data[j].w);
             Scalar3 gamma_r = h_gamma_r.data[type_r];
             if (gamma_r.x > 0 || gamma_r.y > 0 || gamma_r.z > 0)
@@ -176,24 +172,21 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
                 vec3<Scalar> I(h_inertia.data[j]);
 
             	// obtain rotation matrices (space->body)
-	        rotmat3<Scalar> rotA(conj(q));
+	            rotmat3<Scalar> rotA(conj(q));
 
                 bool x_zero, y_zero, z_zero;
                 x_zero = (I.x < EPSILON); y_zero = (I.y < EPSILON); z_zero = (I.z < EPSILON);
 
-	        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
-	        // it is not the dimensionality of the system
-
-                Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*currentTemp/m_deltaT),
-                                               fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*currentTemp/m_deltaT),
-                                               fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*currentTemp/m_deltaT));
+                Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(2.0)*gamma_r.x*currentTemp/m_deltaT),
+                                               fast::sqrt(Scalar(2.0)*gamma_r.y*currentTemp/m_deltaT),
+                                               fast::sqrt(Scalar(2.0)*gamma_r.z*currentTemp/m_deltaT));
                 if (m_noiseless_r)
                     sigma_r = make_scalar3(0,0,0);
 
                 vec3<Scalar> bf_torque;
-                bf_torque.x = (sigma_r.x)*uniform(rng);
-                bf_torque.y = (sigma_r.y)*uniform(rng);
-                bf_torque.z = (sigma_r.z)*uniform(rng);
+                bf_torque.x = (sigma_r.x)*stdnormal(rng);
+                bf_torque.y = (sigma_r.y)*stdnormal(rng);
+                bf_torque.z = (sigma_r.z)*stdnormal(rng);
 
                 if (x_zero) bf_torque.x = 0;
                 if (y_zero) bf_torque.y = 0;
@@ -215,19 +208,19 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
                     Scalar qw = h_orientation.data[j].w;
                     Scalar half_theta = atan2(qw,qx);
                     Scalar theta = 2*half_theta;
-		    // Orientation of particle before applying torque
+		            // Orientation of particle before applying torque
                     Scalar ori_x = fast::cos(theta);
                     Scalar ori_y = fast::sin(theta);
                     Scalar ori_z = Scalar(0.0);
-		    // Orientation of particle after applying torque
-		    Scalar ort_x = ori_x + (t.z*ori_y/gamma_r.x)*m_deltaT;
-		    Scalar ort_y = ori_y - (t.z*ori_x/gamma_r.x)*m_deltaT;
-		    Scalar ort_z = Scalar(0.0);
-		    // Obtain angle made by particle with x-axis and then apply rotational noise to get the final orientation
-		    // Then, convert to a quaternion and update particle property
-		    Scalar ang_tor = atan2(ort_y,ort_x);
-		    Scalar ang_final = atan2(ort_y,ort_x) + (bf_torque.z/gamma_r.x)*m_deltaT;
-		    h_orientation.data[j] = make_scalar4(cos(0.5*ang_final), 0.0, 0.0, sin(0.5*ang_final));
+        		    // Orientation of particle after applying torque
+		            Scalar ort_x = ori_x + (t.z*ori_y/gamma_r.x)*m_deltaT;
+        		    Scalar ort_y = ori_y - (t.z*ori_x/gamma_r.x)*m_deltaT;
+		            Scalar ort_z = Scalar(0.0);
+        		    // Obtain angle made by particle with x-axis and then apply rotational noise to get the final orientation
+		            // Then, convert to a quaternion and update particle property
+        		    Scalar ang_tor = atan2(ort_y,ort_x);
+		            Scalar ang_final = atan2(ort_y,ort_x) + (bf_torque.z/gamma_r.x)*m_deltaT;
+        		    h_orientation.data[j] = make_scalar4(cos(0.5*ang_final), 0.0, 0.0, sin(0.5*ang_final));
                     }
 
                 // do the integration for quaternion
@@ -261,14 +254,14 @@ void TwoStepBD::integrateStepOne(unsigned int timestep)
 
 /*! \param timestep Current time step
 */
-void TwoStepBD::integrateStepTwo(unsigned int timestep)
+void TwoStepBDGaussian::integrateStepTwo(unsigned int timestep)
     {
     // there is no step 2 in Brownian dynamics.
     }
 
-void export_TwoStepBD(py::module& m)
+void export_TwoStepBDGaussian(py::module& m)
     {
-    py::class_<TwoStepBD, std::shared_ptr<TwoStepBD> >(m, "TwoStepBD", py::base<TwoStepLangevinBase>())
+    py::class_<TwoStepBDGaussian, std::shared_ptr<TwoStepBDGaussian> >(m, "TwoStepBDGaussian", py::base<TwoStepLangevinBase>())
     .def(py::init< std::shared_ptr<SystemDefinition>,
                             std::shared_ptr<ParticleGroup>,
                             std::shared_ptr<Variant>,

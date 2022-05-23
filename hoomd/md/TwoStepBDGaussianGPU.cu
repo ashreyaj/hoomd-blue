@@ -4,7 +4,7 @@
 
 // Maintainer: joaander
 
-#include "TwoStepBDGPU.cuh"
+#include "TwoStepBDGaussianGPU.cuh"
 #include "hoomd/VectorMath.h"
 #include "hoomd/HOOMDMath.h"
 
@@ -15,8 +15,8 @@ using namespace hoomd;
 
 #include <assert.h>
 
-/*! \file TwoSteBDGPU.cu
-    \brief Defines GPU kernel code for Brownian integration on the GPU. Used by TwoStepBDGPU.
+/*! \file TwoSteBDGaussianGPU.cu
+    \brief Defines GPU kernel code for Brownian integration on the GPU. Used by TwoStepBDGaussianGPU.
 */
 
 //! Takes the second half-step forward in the Langevin integration on a group of particles with
@@ -53,7 +53,7 @@ using namespace hoomd;
     This kernel must be launched with enough dynamic shared memory per block to read in d_gamma
 */
 extern "C" __global__
-void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
+void gpu_brownian_gaussian_step_one_kernel(Scalar4 *d_pos,
                                   Scalar4 *d_vel,
                                   int3 *d_image,
                                   const BoxDim box,
@@ -138,10 +138,11 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 	        }
 
 		// distribution from which translational/rotational noise should be drawn
-	    RandomGenerator rng(RNGIdentifier::TwoStepBD, seed, ptag, timestep);
+	    RandomGenerator rng(RNGIdentifier::TwoStepBDGaussian, seed, ptag, timestep);
 	    UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
 
 		// retain code as it is if D=3 (never personally tested it -- Ashreya)
+        // The noise is not Gaussian with D>2! Modify before using.
 		if (D > 2)
 		{
 		        // compute the random force
@@ -178,12 +179,11 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 		// 2D brownian integrator
 		else
 		{
-	        Scalar rx = uniform(rng);
-	        Scalar ry = uniform(rng);
+		    NormalDistribution<Scalar> stdnormal(Scalar(1.0));
+	        Scalar rx = stdnormal(rng);
+	        Scalar ry = stdnormal(rng);
 	
-		    // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
-		    // it is not the dimensionality of the system
-		    Scalar coeff = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma*T/deltaT);
+		    Scalar coeff = fast::sqrt(Scalar(2.0)*gamma*T/deltaT);
 		    if (d_noiseless_t)
 			{
 		        coeff = Scalar(0.0);
@@ -200,9 +200,6 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 		    box.wrap(postype, image);
 	
 	        // draw a new random velocity for particle j
-	        Scalar mass =  vel.w;
-	        Scalar sigma = fast::sqrt(T/mass);
-	        NormalDistribution<Scalar> normal(sigma);
 		    vel.x = net_force.x/gamma;
 		    vel.y = net_force.y/gamma;
 		    vel.z = Scalar(0.0);
@@ -262,10 +259,11 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 
 				else
                 {
-					Scalar sigma_r = fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*T/deltaT);
+		            NormalDistribution<Scalar> stdnormal(Scalar(1.0));
+					Scalar sigma_r = fast::sqrt(Scalar(2.0)*gamma_r.x*T/deltaT);
 	            	if (d_noiseless_r)
 	                	sigma_r = Scalar(0.0);
-					Scalar bf_torque = sigma_r*uniform(rng);
+					Scalar bf_torque = sigma_r*stdnormal(rng);
 	                t.x = 0;
 	                t.y = 0;
 	                Scalar qx = d_orientation[idx].x;
@@ -328,7 +326,7 @@ void gpu_brownian_step_one_kernel(Scalar4 *d_pos,
 
     This is just a driver for gpu_brownian_step_one_kernel(), see it for details.
 */
-cudaError_t gpu_brownian_step_one(Scalar4 *d_pos,
+cudaError_t gpu_brownian_gaussian_step_one(Scalar4 *d_pos,
                                   Scalar4 *d_vel,
                                   int3 *d_image,
                                   const BoxDim& box,
@@ -365,7 +363,7 @@ cudaError_t gpu_brownian_step_one(Scalar4 *d_pos,
         dim3 threads(run_block_size, 1, 1);
 
         // run the kernel
-        gpu_brownian_step_one_kernel<<< grid, threads, (unsigned int)(sizeof(Scalar)*langevin_args.n_types + sizeof(Scalar3)*langevin_args.n_types)>>>
+        gpu_brownian_gaussian_step_one_kernel<<< grid, threads, (unsigned int)(sizeof(Scalar)*langevin_args.n_types + sizeof(Scalar3)*langevin_args.n_types)>>>
                                     (d_pos,
                                      d_vel,
                                      d_image,

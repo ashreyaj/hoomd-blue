@@ -271,9 +271,9 @@ void gpu_active_brownian_mobilityfield_step_one_kernel(Scalar4 *d_pos,
 
 				if (D > 2)
 				{
-                	Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.x*T/deltaT),
-                    	                           fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.y*T/deltaT),
-                        	                       fast::sqrt(Scalar(3.0)*Scalar(2.0)*gamma_r.z*T/deltaT));
+                	Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(2.0)*gamma_r.x*T/deltaT),
+                    	                           fast::sqrt(Scalar(2.0)*gamma_r.y*T/deltaT),
+                        	                       fast::sqrt(Scalar(2.0)*gamma_r.z*T/deltaT));
 	                if (d_noiseless_r)
 	                    sigma_r = make_scalar3(0,0,0);
 	

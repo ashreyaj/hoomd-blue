@@ -30,6 +30,7 @@ set(_md_sources module-md.cc
                    TablePotential.cc
                    TempRescaleUpdater.cc
                    TwoStepBD.cc
+                   TwoStepBDGaussian.cc
                    TwoStepBDAnisoGamma.cc
                    TwoStepABDMobilityField.cc
                    TwoStepBerendsen.cc
@@ -151,6 +152,8 @@ set(_md_headers ActiveForceComputeGPU.h
                 TempRescaleUpdater.h
                 TwoStepBDGPU.h
                 TwoStepBD.h
+                TwoStepBDGaussianGPU.h
+                TwoStepBDGaussian.h
                 TwoStepBDAnisoGammaGPU.h
                 TwoStepBDAnisoGamma.h
                 TwoStepABDMobilityFieldGPU.h
@@ -195,6 +198,7 @@ list(APPEND _md_sources ActiveForceComputeGPU.cc
                            TableDihedralForceComputeGPU.cc
                            TablePotentialGPU.cc
                            TwoStepBDGPU.cc
+                           TwoStepBDGaussianGPU.cc
                            TwoStepBDAnisoGammaGPU.cc
                            TwoStepABDMobilityFieldGPU.cc
                            TwoStepBerendsenGPU.cc
@@ -255,6 +259,7 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       TableDihedralForceGPU.cu
                       TablePotentialGPU.cu
                       TwoStepBDGPU.cu
+                      TwoStepBDGaussianGPU.cu
                       TwoStepBDAnisoGammaGPU.cu
                       TwoStepABDMobilityFieldGPU.cu
                       TwoStepBerendsenGPU.cu
