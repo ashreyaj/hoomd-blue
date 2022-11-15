@@ -171,6 +171,17 @@ DEVICE inline Scalar distWall(const SphereWall& wall, const vec3<Scalar>& positi
     return d;
     };
 
+//! Distance of point to origin 
+DEVICE inline Scalar distToOrigin(const SphereWall& wall, const vec3<Scalar>& position)
+    {
+    vec3<Scalar> t = position;
+    t-=wall.origin;
+    vec3<Scalar> shiftedPos(t);
+    Scalar rxyz2 = shiftedPos.x*shiftedPos.x + shiftedPos.y*shiftedPos.y + shiftedPos.z*shiftedPos.z;
+    Scalar d = sqrt(rxyz2); 
+    return d;
+    };
+
 //! Distance of point to inside cylinder wall geometry, not really distance, +- based on if it's inside or not
 DEVICE inline Scalar distWall(const CylinderWall& wall, const vec3<Scalar>& position)
     {

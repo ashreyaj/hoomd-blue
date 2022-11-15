@@ -146,7 +146,7 @@ void gpu_brownian_anisogamma_step_one_kernel(Scalar4 *d_pos,
 		        // compute the random force
 		        Scalar rx = uniform(rng);
 		        Scalar ry = uniform(rng);
-		        Scalar rz =  uniform(rng);
+		        Scalar rz = uniform(rng);
 		
 		        // compute the bd force (the extra factor of 3 is because <rx^2> is 1/3 in the uniform -1,1 distribution
 		        // it is not the dimensionality of the system

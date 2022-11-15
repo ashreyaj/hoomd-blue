@@ -59,6 +59,8 @@
 #include "WallData.h"
 #include "ZeroMomentumUpdater.h"
 #include "MuellerPlatheFlow.h"
+// #include "WallHarmonic.h"
+#include "WallRatchet.h"
 
 // include GPU classes
 #ifdef ENABLE_CUDA
@@ -100,6 +102,8 @@
 #include "TwoStepNVEGPU.h"
 #include "TwoStepNVTMTKGPU.h"
 #include "MuellerPlatheFlowGPU.h"
+// #include "WallHarmonicGPU.h"
+#include "WallRatchetGPU.h"
 #endif
 
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
@@ -293,6 +297,8 @@ PYBIND11_MODULE(_md, m)
     export_NeighborListStencil(m);
     export_NeighborListTree(m);
     export_ConstraintSphere(m);
+    export_SphereWall(m);
+//    export_SphereWallRatchet(m);
     
     export_MolecularForceCompute(m);
     export_ForceDistanceConstraint(m);
@@ -312,6 +318,8 @@ PYBIND11_MODULE(_md, m)
     export_PotentialExternalWall<EvaluatorPairWHDFfinite>(m, "WallsPotentialWHDFfinite");
     export_PotentialExternalWall<EvaluatorPairGauss>(m, "WallsPotentialGauss");
     export_PotentialExternalWall<EvaluatorPairMorse>(m, "WallsPotentialMorse");
+//    export_WallHarmonic<SphereWall>(m, "SphereWallHarmonic");
+    export_WallRatchet<SphereWall>(m, "SphereWallRatchet");
 
 #ifdef ENABLE_CUDA
     export_NeighborListGPU(m);
@@ -374,6 +382,8 @@ PYBIND11_MODULE(_md, m)
     export_PotentialExternalGPU<WallsPotentialWHDFfiniteGPU, WallsPotentialGauss>(m, "WallsPotentialWHDFfiniteGPU");
     export_PotentialExternalGPU<WallsPotentialGaussGPU, WallsPotentialGauss>(m, "WallsPotentialGaussGPU");
     export_PotentialExternalGPU<WallsPotentialMorseGPU, WallsPotentialMorse>(m, "WallsPotentialMorseGPU");
+//    export_WallHarmonicGPU<SphereWall>(m, "SphereWallHarmonicGPU");
+    export_WallRatchetGPU<SphereWall>(m, "SphereWallRatchetGPU");
 #endif
 
     // updaters

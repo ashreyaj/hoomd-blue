@@ -41,6 +41,8 @@ set(_md_sources module-md.cc
                    TwoStepNVTMTK.cc
                    ZeroMomentumUpdater.cc
                    MuellerPlatheFlow.cc
+#                   WallHarmonic.cc
+                   WallRatchet.cc
                    )
 
 set(_md_headers ActiveForceComputeGPU.h
@@ -170,6 +172,10 @@ set(_md_headers ActiveForceComputeGPU.h
                 TwoStepNVTMTKGPU.h
                 TwoStepNVTMTK.h
                 WallData.h
+#                WallHarmonicGPU.h
+#                WallHarmonic.h
+                WallRatchetGPU.h
+                WallRatchet.h
                 ZeroMomentumUpdater.h
                 )
 
@@ -208,6 +214,8 @@ list(APPEND _md_sources ActiveForceComputeGPU.cc
                            TwoStepNVTMTKGPU.cc
                            MuellerPlatheFlowGPU.cc
                            CosineSqAngleForceComputeGPU.cc
+#                           WallHarmonicGPU.cc
+                           WallRatchetGPU.cc
                            )
 endif()
 
@@ -269,6 +277,8 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       TwoStepNVTMTKGPU.cu
                       MuellerPlatheFlowGPU.cu
                       CosineSqAngleForceGPU.cu
+#                      WallHarmonicGPU.cu
+                      WallRatchetGPU.cu
                       )
 
 if (ENABLE_CUDA)
@@ -335,6 +345,8 @@ set(files __init__.py
           pair.py
           update.py
           wall.py
+#          wallharmonic.py
+          wallratchet.py
           special_pair.py
     )
 
