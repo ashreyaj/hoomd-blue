@@ -49,6 +49,7 @@
 #include "TwoStepBD.h"
 #include "TwoStepBDGaussian.h"
 #include "TwoStepBDAnisoGamma.h"
+#include "TwoStepBDConstrainToX.h"
 #include "TwoStepABDMobilityField.h"
 #include "TwoStepBerendsen.h"
 #include "TwoStepLangevinBase.h"
@@ -95,6 +96,7 @@
 #include "TwoStepBDGPU.h"
 #include "TwoStepBDGaussianGPU.h"
 #include "TwoStepBDAnisoGammaGPU.h"
+#include "TwoStepBDConstrainToXGPU.h"
 #include "TwoStepABDMobilityFieldGPU.h"
 #include "TwoStepBerendsenGPU.h"
 #include "TwoStepLangevinGPU.h"
@@ -398,6 +400,7 @@ PYBIND11_MODULE(_md, m)
     export_TwoStepBD(m);
     export_TwoStepBDGaussian(m);
     export_TwoStepBDAnisoGamma(m);
+    export_TwoStepBDConstrainToX(m);
     export_TwoStepABDMobilityField(m);
     export_TwoStepNPTMTK(m);
     export_Berendsen(m);
@@ -413,6 +416,7 @@ PYBIND11_MODULE(_md, m)
     export_TwoStepBDGPU(m);
     export_TwoStepBDGaussianGPU(m);
     export_TwoStepBDAnisoGammaGPU(m);
+    export_TwoStepBDConstrainToXGPU(m);
     export_TwoStepABDMobilityFieldGPU(m);
     export_TwoStepNPTMTKGPU(m);
     export_BerendsenGPU(m);

@@ -40,6 +40,7 @@ struct RNGIdentifier
     static const uint32_t TwoStepBD = 0x431287ff;
     static const uint32_t TwoStepBDGaussian = 0x321367fa;
     static const uint32_t TwoStepBDAnisoGamma = 0x5a2219bf;
+    static const uint32_t TwoStepBDConstrainToX = 0x567219bf;
     static const uint32_t TwoStepABDMobilityField = 0x2309a7f1;
     static const uint32_t TwoStepLangevin = 0x89abcdef;
     static const uint32_t TwoStepLangevinAngular = 0x19fe31ab;
