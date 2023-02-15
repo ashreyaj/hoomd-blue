@@ -38,6 +38,7 @@ struct RNGIdentifier
     static const uint32_t EvaluatorPairDPDThermo = 0x4a84f5d0;
     static const uint32_t IntegrationMethodTwoStep = 0x11df5642;
     static const uint32_t TwoStepBD = 0x431287ff;
+    static const uint32_t TwoStepBDHarmonic = 0x231529fb;
     static const uint32_t TwoStepBDGaussian = 0x321367fa;
     static const uint32_t TwoStepBDAnisoGamma = 0x5a2219bf;
     static const uint32_t TwoStepBDConstrainToX = 0x567219bf;

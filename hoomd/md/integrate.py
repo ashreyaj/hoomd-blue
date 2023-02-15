@@ -2205,3 +2205,143 @@ class brownian_constraintox(_integration_method):
         for i in range(0,ntypes):
             if a == type_list[i]:
                 self.cpp_method.setGamma_r(i,_hoomd.make_scalar3(*gamma_r));
+
+
+class brownian_harmonic(_integration_method):
+    def __init__(self, group, kT, seed, dscale=False, k=1.0, y0=0.0, noiseless_t=False, noiseless_r=False):
+        hoomd.util.print_status_line();
+
+        # initialize base class
+        _integration_method.__init__(self);
+
+        # setup the variant inputs
+        kT = hoomd.variant._setup_variant_input(kT);
+
+        # create the compute thermo
+        hoomd.compute._get_unique_thermo(group=group);
+
+        if dscale is False or dscale == 0:
+            use_lambda = False;
+        else:
+            use_lambda = True;
+
+        # initialize the reflected c++ class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            my_class = _md.TwoStepBDHarmonic;
+        else:
+            my_class = _md.TwoStepBDHarmonicGPU;
+
+        self.cpp_method = my_class(hoomd.context.current.system_definition,
+                                   group.cpp_group,
+                                   kT.cpp_variant,
+                                   seed,
+                                   use_lambda,
+                                   float(dscale),
+                                   k,
+                                   y0,
+                                   noiseless_t,
+                                   noiseless_r);
+
+        self.cpp_method.validateGroup()
+
+        # store metadata
+        self.group = group
+        self.kT = kT
+        self.seed = seed
+        self.dscale = dscale
+        self.k = k
+        self.y0 = y0
+        self.noiseless_t = noiseless_t
+        self.noiseless_r = noiseless_r
+        self.metadata_fields = ['group', 'kT', 'seed', 'dscale','k', 'y0', 'noiseless_t', 'noiseless_r']
+
+    def set_params(self, kT=None):
+        R""" Change langevin integrator parameters.
+
+        Args:
+            kT (:py:mod:`hoomd.variant` or :py:obj:`float`): New temperature (if set) (in energy units).
+
+        Examples::
+
+            integrator.set_params(kT=2.0)
+
+        """
+        hoomd.util.print_status_line();
+        self.check_initialization();
+
+        # change the parameters
+        if kT is not None:
+            # setup the variant inputs
+            kT = hoomd.variant._setup_variant_input(kT);
+            self.cpp_method.setT(kT.cpp_variant);
+            self.kT = kT
+
+    def set_gamma(self, a, gamma):
+        R""" Set gamma for a particle type.
+
+        Args:
+            a (str): Particle type name
+            gamma (float): :math:`\gamma` for particle type a (in units of force/velocity)
+
+        :py:meth:`set_gamma()` sets the coefficient :math:`\gamma` for a single particle type, identified
+        by name. The default is 1.0 if not specified for a type.
+
+        It is not an error to specify gammas for particle types that do not exist in the simulation.
+        This can be useful in defining a single simulation script for many different types of particles
+        even when some simulations only include a subset.
+
+        Examples::
+
+            bd.set_gamma('A', gamma=2.0)
+
+        """
+        hoomd.util.print_status_line();
+        self.check_initialization();
+        a = str(a);
+
+        ntypes = hoomd.context.current.system_definition.getParticleData().getNTypes();
+        type_list = [];
+        for i in range(0,ntypes):
+            type_list.append(hoomd.context.current.system_definition.getParticleData().getNameByType(i));
+
+        # change the parameters
+        for i in range(0,ntypes):
+            if a == type_list[i]:
+                self.cpp_method.setGamma(i,gamma);
+
+    def set_gamma_r(self, a, gamma_r):
+        R""" Set gamma_r for a particle type.
+
+        Args:
+            a (str):  Particle type name
+            gamma_r (float or tuple): :math:`\gamma_r` for particle type a (in units of force/velocity), optionally for all body frame directions
+
+        :py:meth:`set_gamma_r()` sets the coefficient :math:`\gamma_r` for a single particle type, identified
+        by name. The default is 1.0 if not specified for a type. It must be positive or zero, if set
+        zero, it will have no rotational damping or random torque, but still with updates from normal net torque.
+
+        Examples::
+
+            bd.set_gamma_r('A', gamma_r=2.0)
+            bd.set_gamma_r('A', gamma_r=(1,2,3))
+
+        """
+
+        hoomd.util.print_status_line();
+        self.check_initialization();
+
+        if not isinstance(gamma_r,tuple):
+            gamma_r = (gamma_r, gamma_r, gamma_r)
+
+        if (gamma_r[0] < 0 or gamma_r[1] < 0 or gamma_r[2] < 0):
+            raise ValueError("The gamma_r must be positive or zero (represent no rotational damping or random torque, but with updates)")
+
+        ntypes = hoomd.context.current.system_definition.getParticleData().getNTypes();
+        type_list = [];
+        for i in range(0,ntypes):
+            type_list.append(hoomd.context.current.system_definition.getParticleData().getNameByType(i));
+
+        # change the parameters
+        for i in range(0,ntypes):
+            if a == type_list[i]:
+                self.cpp_method.setGamma_r(i,_hoomd.make_scalar3(*gamma_r));
