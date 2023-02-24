@@ -47,6 +47,7 @@
 #include "TablePotential.h"
 #include "TempRescaleUpdater.h"
 #include "TwoStepBD.h"
+#include "TwoStepBDChannel.h"
 #include "TwoStepBDHarmonic.h"
 #include "TwoStepBDGaussian.h"
 #include "TwoStepBDAnisoGamma.h"
@@ -95,6 +96,7 @@
 #include "TableDihedralForceComputeGPU.h"
 #include "TablePotentialGPU.h"
 #include "TwoStepBDGPU.h"
+#include "TwoStepBDChannelGPU.h"
 #include "TwoStepBDHarmonicGPU.h"
 #include "TwoStepBDGaussianGPU.h"
 #include "TwoStepBDAnisoGammaGPU.h"
@@ -400,6 +402,7 @@ PYBIND11_MODULE(_md, m)
     export_TwoStepLangevinBase(m);
     export_TwoStepLangevin(m);
     export_TwoStepBD(m);
+    export_TwoStepBDChannel(m);
     export_TwoStepBDHarmonic(m);
     export_TwoStepBDGaussian(m);
     export_TwoStepBDAnisoGamma(m);
@@ -417,6 +420,7 @@ PYBIND11_MODULE(_md, m)
     export_TwoStepNVTMTKGPU(m);
     export_TwoStepLangevinGPU(m);
     export_TwoStepBDGPU(m);
+    export_TwoStepBDChannelGPU(m);
     export_TwoStepBDHarmonicGPU(m);
     export_TwoStepBDGaussianGPU(m);
     export_TwoStepBDAnisoGammaGPU(m);
