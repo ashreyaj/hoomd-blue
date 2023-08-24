@@ -35,9 +35,10 @@ TwoStepBDChannelGPU::TwoStepBDChannelGPU(std::shared_ptr<SystemDefinition> sysde
                            Scalar fconst,
                            Scalar y0,
                            Scalar width,
+                           int geometry,
                            bool noiseless_t,
                            bool noiseless_r)
-    : TwoStepBDChannel(sysdef, group, T, seed, use_lambda, lambda, fconst, y0, width, noiseless_t, noiseless_r)
+    : TwoStepBDChannel(sysdef, group, T, seed, use_lambda, lambda, fconst, y0, width, geometry, noiseless_t, noiseless_r)
     {
     if (!m_exec_conf->isCUDAEnabled())
         {
@@ -133,6 +134,7 @@ void TwoStepBDChannelGPU::integrateStepOne(unsigned int timestep)
                           m_fconst,
                           m_y0,
                           m_width,
+                          m_geometry,
                           m_noiseless_t,
                           m_noiseless_r,
                           m_group->getGPUPartition());
@@ -167,6 +169,7 @@ void export_TwoStepBDChannelGPU(py::module& m)
                                Scalar,
                                Scalar,
                                Scalar,
+                               int,
                                bool,
                                bool>())
         ;

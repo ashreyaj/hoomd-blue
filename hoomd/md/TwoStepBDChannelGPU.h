@@ -37,6 +37,7 @@ class PYBIND11_EXPORT TwoStepBDChannelGPU : public TwoStepBDChannel
                      Scalar fconst,
                      Scalar y0,
                      Scalar width,
+                     int geometry,
                      bool noiseless_t,
                      bool noiseless_r);
 

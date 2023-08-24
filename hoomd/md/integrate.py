@@ -2347,7 +2347,7 @@ class brownian_harmonic(_integration_method):
                 self.cpp_method.setGamma_r(i,_hoomd.make_scalar3(*gamma_r));
 
 class brownian_channel(_integration_method):
-    def __init__(self, group, kT, seed, dscale=False, fconst=1.0, y0=0.0, width=1.0, noiseless_t=False, noiseless_r=False):
+    def __init__(self, group, kT, seed, dscale=False, fconst=1.0, y0=0.0, width=1.0, geometry=0, noiseless_t=False, noiseless_r=False):
         hoomd.util.print_status_line();
 
         # initialize base class
@@ -2379,6 +2379,7 @@ class brownian_channel(_integration_method):
                                    fconst,
                                    y0,
                                    width,
+                                   geometry,
                                    noiseless_t,
                                    noiseless_r);
 
@@ -2392,9 +2393,10 @@ class brownian_channel(_integration_method):
         self.fconst = fconst
         self.y0 = y0
         self.width = width
+        self.geometry = geometry
         self.noiseless_t = noiseless_t
         self.noiseless_r = noiseless_r
-        self.metadata_fields = ['group', 'kT', 'seed', 'dscale','fconst', 'y0', 'width', 'noiseless_t', 'noiseless_r']
+        self.metadata_fields = ['group', 'kT', 'seed', 'dscale','fconst', 'y0', 'width', 'geometry', 'noiseless_t', 'noiseless_r']
 
     def set_params(self, kT=None):
         R""" Change langevin integrator parameters.

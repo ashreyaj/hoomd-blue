@@ -40,6 +40,7 @@ class PYBIND11_EXPORT TwoStepBDChannel : public TwoStepLangevinBase
                     Scalar fconst,
                     Scalar y0,
                     Scalar width,
+                    int geometry,
                     bool noiseless_t,
                     bool noiseless_r
                     );
@@ -56,6 +57,7 @@ class PYBIND11_EXPORT TwoStepBDChannel : public TwoStepLangevinBase
         Scalar m_fconst;
         Scalar m_y0;
         Scalar m_width;
+        int m_geometry;
         bool m_noiseless_t;
         bool m_noiseless_r;
     };

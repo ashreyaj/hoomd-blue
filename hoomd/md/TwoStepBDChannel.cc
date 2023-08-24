@@ -35,6 +35,7 @@ using namespace std;
     \param fconst Constant force that acts on particles outside the channel
     \param y0 Center of channel (confined along the y axis)
     \param width Width of the channel
+    \param geometry Channel geometry -- 0: linear, 1: circular 
     \param noiseless_t If set true, there will be no translational noise (random force)
     \param noiseless_r If set true, there will be no rotational noise (random torque)
 */
@@ -47,11 +48,12 @@ TwoStepBDChannel::TwoStepBDChannel(std::shared_ptr<SystemDefinition> sysdef,
                            Scalar fconst,
                            Scalar y0,
                            Scalar width,
+                           int geometry,
                            bool noiseless_t,
                            bool noiseless_r
                            )
   : TwoStepLangevinBase(sysdef, group, T, seed, use_lambda, lambda),
-    m_fconst(fconst), m_y0(y0), m_width(width), m_noiseless_t(noiseless_t), m_noiseless_r(noiseless_r)
+    m_fconst(fconst), m_y0(y0), m_width(width), m_geometry(geometry), m_noiseless_t(noiseless_t), m_noiseless_r(noiseless_r)
     {
     m_exec_conf->msg->notice(5) << "Constructing TwoStepBDChannel" << endl;
     }
@@ -142,17 +144,52 @@ void TwoStepBDChannel::integrateStepOne(unsigned int timestep)
         Scalar Fr_z = rz*coeff;
 
         // check if particle is outside the force-free region (within the channel) and on which side
-        Scalar ydisp = h_pos.data[j].y - m_y0;
-        Scalar outside = 0;
-        if ((ydisp*ydisp) > (0.25*m_width*m_width))
+        if (m_geometry == 0) // linear channel
         {
-            outside = (ydisp > 0) ? -1 : 1;
+            Scalar ydisp = h_pos.data[j].y - m_y0;
+            Scalar outside = 0;
+            if ((ydisp*ydisp) > (0.25*m_width*m_width))
+            {
+                outside = (ydisp > 0) ? -1 : 1;
+            }
+
+            // update position
+            h_pos.data[j].x += (h_net_force.data[j].x + Fr_x)*m_deltaT/gamma;
+            h_pos.data[j].y += (h_net_force.data[j].y + Fr_y + outside*m_fconst) * m_deltaT/gamma;
+
+            h_vel.data[j].x = h_net_force.data[j].x/gamma;
+            h_vel.data[j].y = (h_net_force.data[j].y + outside*m_fconst)/gamma;
+            h_vel.data[j].z = Scalar(0.0);
         }
 
-        // update position
-        h_pos.data[j].x += (h_net_force.data[j].x + Fr_x)*m_deltaT/gamma;
-        h_pos.data[j].y += (h_net_force.data[j].y + Fr_y + outside*m_fconst) * m_deltaT/gamma;
-        h_pos.data[j].z += Scalar(0.0); 
+        else // circular channel
+        {
+            Scalar xpos = h_pos.data[j].x;     
+            Scalar ypos = h_pos.data[j].y;     
+            Scalar r = fast::sqrt(ypos*ypos + xpos*xpos);     
+            Scalar theta = atan2(ypos,xpos);     
+            Scalar outside;
+            if (r<(m_y0)) // here y0 is the inner radius of the channel
+            {
+                outside = 1; 
+            }
+            else if (r>(m_y0+m_width)) 
+            {
+                outside = -1; 
+            }
+            else
+            {
+                outside = 0;
+            }
+            std::cout << r << "\t" << m_y0 << "\t" << m_width << "\t" << outside << std::endl;
+            // update position
+            h_pos.data[j].x += (h_net_force.data[j].x + Fr_x + outside*m_fconst*fast::cos(theta)) * m_deltaT/gamma;
+            h_pos.data[j].y += (h_net_force.data[j].y + Fr_y + outside*m_fconst*fast::sin(theta)) * m_deltaT/gamma;
+
+            h_vel.data[j].x = (h_net_force.data[j].x + outside*m_fconst*fast::cos(theta))/gamma;
+            h_vel.data[j].y = (h_net_force.data[j].y + outside*m_fconst*fast::sin(theta))/gamma;
+            h_vel.data[j].z = Scalar(0.0);
+        }
 
         // particles may have been moved slightly outside the box by the above steps, wrap them back into place
         box.wrap(h_pos.data[j], h_image.data[j]);
@@ -165,9 +202,6 @@ void TwoStepBDChannel::integrateStepOne(unsigned int timestep)
         {
             std::cout << "xvel: " << h_net_force.data[j].x/gamma << " yvel: " << h_net_force.data[j].y/gamma << std::endl;
         }
-        h_vel.data[j].x = h_net_force.data[j].x/gamma;
-        h_vel.data[j].y = (h_net_force.data[j].y + outside*m_fconst)/gamma;
-        h_vel.data[j].y = Scalar(0.0);
         if (D > 2)
             {
             h_vel.data[j].z = normal(rng);
@@ -287,6 +321,7 @@ void export_TwoStepBDChannel(py::module& m)
                             Scalar,
                             Scalar,
                             Scalar,
+                            int,
                             bool,
                             bool>())
         ;

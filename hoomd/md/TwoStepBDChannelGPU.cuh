@@ -38,6 +38,7 @@ cudaError_t gpu_brownian_channel_step_one(Scalar4 *d_pos,
                                   const Scalar d_fconst,
                                   const Scalar d_y0,
                                   const Scalar d_width,
+                                  const int d_geometry,
                                   const bool d_noiseless_t,
                                   const bool d_noiseless_r,
                                   const GPUPartition& gpu_partition);

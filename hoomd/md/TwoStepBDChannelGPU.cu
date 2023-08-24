@@ -47,6 +47,7 @@ using namespace hoomd;
     \param fconst Constant force that acts on particles outside the channel
     \param y0 Center of channel (confined along the y axis)
     \param width Width of the channel
+    \param geometry Channel geometry -- 0: linear, 1: circular 
     \param d_noiseless_t If set true, there will be no translational noise (random force)
     \param d_noiseless_r If set true, there will be no rotational noise (random torque)
     \param offset Offset of this GPU into group indices
@@ -83,6 +84,7 @@ void gpu_brownian_channel_step_one_kernel(Scalar4 *d_pos,
                                   const Scalar d_fconst,
                                   const Scalar d_y0,
                                   const Scalar d_width,
+                                  const int d_geometry,
                                   const bool d_noiseless_t,
                                   const bool d_noiseless_r,
                                   const unsigned int offset)
@@ -198,18 +200,52 @@ void gpu_brownian_channel_step_one_kernel(Scalar4 *d_pos,
             Scalar Fr_y = ry*coeff;
 
             // check if particle is outside the force-free region (within the channel) and on which side
-            Scalar ydisp = postype.y - d_y0;
-            Scalar outside = 0;
-            if ((ydisp*ydisp) > (0.25*d_width*d_width))
+
+            if (d_geometry==0)
             {
-                outside = (ydisp > 0) ? -1 : 1;
-            }
+                Scalar ydisp = postype.y - d_y0;
+                Scalar outside = 0;
+                if ((ydisp*ydisp) > (0.25*d_width*d_width))
+                {
+                    outside = (ydisp > 0) ? -1 : 1;
+                }
 			
-		    // update position
-            postype.x += (net_force.x + Fr_x) * deltaT / gamma;
-            postype.y += (net_force.y + Fr_y + outside*d_fconst) * deltaT / gamma;
-            postype.z += Scalar(0.0); 
+		        // update position
+                postype.x += (net_force.x + Fr_x) * deltaT / gamma;
+                postype.y += (net_force.y + Fr_y + outside*d_fconst) * deltaT / gamma;
+
+		        vel.x = net_force.x/gamma;
+		        vel.y = (net_force.y + outside*d_fconst)/gamma;
+		        vel.z = Scalar(0.0);
+            }
 	
+            else
+            {
+                Scalar xpos = postype.x;     
+                Scalar ypos = postype.y;     
+                Scalar r = fast::sqrt(ypos*ypos + xpos*xpos);     
+                Scalar theta = atan2(ypos,xpos);     
+                Scalar outside;
+                if (r<d_y0) // here y0 is the inner radius of the channel
+                {
+                    outside = Scalar(1.0); 
+                }
+                else if (r>(d_y0+d_width)) 
+                {
+                    outside = Scalar(-1.0); 
+                }
+                else
+                {
+                    outside = Scalar(0.0);
+                }
+                // update position
+                postype.x += (net_force.x + Fr_x + outside*d_fconst*fast::cos(theta)) * deltaT/gamma;
+                postype.y += (net_force.y + Fr_y + outside*d_fconst*fast::sin(theta)) * deltaT/gamma;
+
+		        vel.x = (net_force.x + outside*d_fconst*fast::cos(theta))/gamma;
+		        vel.y = (net_force.y + outside*d_fconst*fast::sin(theta))/gamma;
+		        vel.z = Scalar(0.0);
+            }
 	        // particles may have been moved slightly outside the box by the above steps, wrap them back into place
 		    box.wrap(postype, image);
 	
@@ -217,9 +253,6 @@ void gpu_brownian_channel_step_one_kernel(Scalar4 *d_pos,
 	        Scalar mass =  vel.w;
 	        Scalar sigma = fast::sqrt(T/mass);
 	        NormalDistribution<Scalar> normal(sigma);
-		    vel.x = net_force.x/gamma;
-		    vel.y = (net_force.y + outside*d_fconst)/gamma;
-		    vel.z = Scalar(0.0);
 		}
 	
 		// write out data
@@ -285,10 +318,10 @@ void gpu_brownian_channel_step_one_kernel(Scalar4 *d_pos,
 	                Scalar qx = d_orientation[idx].x;
 	                Scalar qw = d_orientation[idx].w;
 	                Scalar half_theta = atan2(qw,qx);
-	                Scalar theta = 2*half_theta;
+	                Scalar Theta = 2*half_theta;
 				    // Orientation of particle before applying torque
-	                Scalar ori_x = fast::cos(theta);
-	                Scalar ori_y = fast::sin(theta);
+	                Scalar ori_x = fast::cos(Theta);
+	                Scalar ori_y = fast::sin(Theta);
 				    // Orientation of particle after applying torque
 				    Scalar ort_x = ori_x + (t.z*ori_y/gamma_r.x)*deltaT;
 				    Scalar ort_y = ori_y - (t.z*ori_x/gamma_r.x)*deltaT;
@@ -340,6 +373,7 @@ void gpu_brownian_channel_step_one_kernel(Scalar4 *d_pos,
     \param d_fconst Constant force that acts on particles outside the channel
     \param d_y0 Center of channel (confined along the y axis)
     \param d_width Width of the channel
+    \param d_geometry Channel geometry -- 0: linear; 1: circular 
     \param d_noiseless_t If set true, there will be no translational noise (random force)
     \param d_noiseless_r If set true, there will be no rotational noise (random torque)
 
@@ -366,6 +400,7 @@ cudaError_t gpu_brownian_channel_step_one(Scalar4 *d_pos,
                                   const Scalar d_fconst,
                                   const Scalar d_y0,
                                   const Scalar d_width,
+                                  const int d_geometry,
                                   const bool d_noiseless_t,
                                   const bool d_noiseless_r,
                                   const GPUPartition& gpu_partition
@@ -413,6 +448,7 @@ cudaError_t gpu_brownian_channel_step_one(Scalar4 *d_pos,
                                      d_fconst,
                                      d_y0,
                                      d_width,
+                                     d_geometry,
                                      d_noiseless_t,
                                      d_noiseless_r,
                                      range.first);
